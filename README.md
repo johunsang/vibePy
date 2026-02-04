@@ -1,6 +1,6 @@
 # VibeLang (LLM-First Python-Compatible Language)
 
-VibeLang is a new language designed for AI-only authoring that compiles to Python AST and runs on CPython for maximum package compatibility.
+VibeLang is a JSON-first, AI-only authoring language that compiles to Python AST and runs on CPython for maximum package compatibility.
 
 Key points
 - CPython execution (stdlib + Python packages)
@@ -8,36 +8,24 @@ Key points
 - Step-level instrumentation with retries, timeouts, and guards
 - Execution report output
 
-## Quick Start
-
-Validate a program:
-```bash
-python3 -m vibelang validate examples/echo.vbl
+## VibeLang Syntax (JSON IR)
+Minimal program:
+```json
+{
+  "meta": {"name": "Echo"},
+  "steps": [
+    {
+      "name": "upper",
+      "params": ["text"],
+      "guard": ["100%"],
+      "return": {"call": "str.upper", "args": [{"name": "text"}]}
+    }
+  ],
+  "run": {"call": "upper", "args": [{"literal": "hello"}]}
+}
 ```
 
-Run and print result:
-```bash
-python3 -m vibelang run examples/echo.vbl
-```
-
-Run and print report JSON:
-```bash
-python3 -m vibelang run examples/echo.vbl --json
-```
-
-Compile to Python source:
-```bash
-python3 -m vibelang compile examples/echo.vbl
-```
-
-Parse `.vbl` to JSON IR:
-```bash
-python3 -m vibelang parse examples/echo.vbl
-```
-
-## IR Format (v0.1)
-
-Top-level fields
+IR Format (v0.1)
 - `meta`: object with metadata
 - `imports`: list of Python imports
 - `inputs`: object of input values
@@ -73,6 +61,64 @@ Imports
 - `{ "import": "numpy", "as": "np" }`
 - `{ "from": "math", "import": ["sqrt", "ceil"] }`
 
+## `.vbl` Syntax (S-Expression)
+Example (`examples/echo.vbl`):
+```
+(meta (name "Echo Pipeline") (version "0.1"))
+(input raw "  hello  ")
+
+(step normalize
+  (params text)
+  (return (call (attr text strip))))
+
+(step upper
+  (params text)
+  (guard "100%")
+  (return (call (attr text upper))))
+
+(run (upper (normalize raw)))
+```
+
+## VibeLang CLI
+Validate a program:
+```bash
+python3 -m vibelang validate examples/echo.vbl
+```
+
+Run and print result:
+```bash
+python3 -m vibelang run examples/echo.vbl
+```
+
+Run and print report JSON:
+```bash
+python3 -m vibelang run examples/echo.vbl --json
+```
+
+Compile to Python source:
+```bash
+python3 -m vibelang compile examples/echo.vbl
+```
+
+Parse `.vbl` to JSON IR:
+```bash
+python3 -m vibelang parse examples/echo.vbl
+```
+
+## VibeLang API Call Examples
+- See `examples/api-call/README.md` for the full list.
+- Example run:
+```bash
+python3 -m vibelang run examples/api-call/get_json.vbl.json
+```
+- Other files include `post_json.vbl.json`, `bearer_auth.vbl.json`, and `timeout_retry.vbl.json`.
+
+## Standard Library Bridge (`vibelang.std`)
+- `vbl.log(message, **fields)` writes to the execution report
+- `vbl.validate_jsonschema(data, schema)` (requires `jsonschema`)
+- `vbl.validate_pydantic(model, data)` (requires `pydantic`)
+- `vbl.parallel({...})` executes callables in a thread pool
+
 ---
 
 # VibeWeb (AI-Friendly Full-Stack Framework)
@@ -85,6 +131,64 @@ Key points
 - Minimal HTML UI pages
 - One spec drives DB + API + UI
 
+## VibeWeb Spec (JSON)
+Example:
+```json
+{
+  "name": "Todo App",
+  "db": {
+    "path": "todo.db",
+    "models": [
+      {
+        "name": "Todo",
+        "fields": {
+          "title": "text",
+          "done": "bool",
+          "created_at": "datetime"
+        }
+      }
+    ]
+  },
+  "api": {"crud": ["Todo"]},
+  "ui": {
+    "admin": true,
+    "admin_path": "/admin",
+    "admin_auth": { "type": "basic", "username": "admin", "password": "admin" },
+    "pages": [
+      {"path": "/", "model": "Todo", "title": "Todos"}
+    ]
+  }
+}
+```
+
+Spec overview
+- `name`: app name
+- `db.path`: sqlite file path
+- `db.models`: list of models and fields
+- `api.crud`: list of models to expose in API
+- `ui.pages`: list of UI pages
+- `ui.admin`: enable admin page
+- `ui.admin_path`: admin URL prefix (default `/admin`)
+- `ui.admin_auth`: basic auth for admin page
+
+Field types
+- `text`, `int`, `float`, `bool`, `datetime`
+
+API routes
+- `GET /api/<Model>` list rows
+- `POST /api/<Model>` create row (JSON or form)
+- `GET /api/<Model>/<id>` get row
+- `PUT|PATCH /api/<Model>/<id>` update row
+- `DELETE /api/<Model>/<id>` delete row
+
+## VibeWeb Design Customization
+- Admin UI theme lives in `vibeweb/server.py`.
+- `TAILWIND_HEAD` controls external CSS (Tailwind CDN + Google Fonts) and color/font tokens.
+- `THEME` is a single dict of Tailwind class strings used across the admin UI.
+- Gallery/home page design lives in `examples/index.html` (and `docs/index.html` for GitHub Pages).
+- To add extra CSS, add a `<style>` or `<link>` in `TAILWIND_HEAD` and/or `examples/index.html`.
+
+## VibeWeb CLI
 Quick start
 ```bash
 python3 -m vibeweb validate examples/todo/todo.vweb.json
@@ -109,74 +213,8 @@ Generate a spec with a local LLM (GLM-4.7-Flash via OpenAI-compatible server):
 python3 -m vibeweb ai --prompt "simple todo app with title and done"
 ```
 
-Spec overview
-- `name`: app name
-- `db.path`: sqlite file path
-- `db.models`: list of models and fields
-- `api.crud`: list of models to expose in API
-- `ui.pages`: list of UI pages
-- `ui.admin`: enable admin page
-- `ui.admin_path`: admin URL prefix (default `/admin`)
-- `ui.admin_auth`: basic auth for admin page
-
 Admin credential overrides (recommended for security):
 ```bash
 export VIBEWEB_ADMIN_USER="admin"
 export VIBEWEB_ADMIN_PASSWORD="change-me"
 ```
-
-Field types
-- `text`, `int`, `float`, `bool`, `datetime`
-
-API routes
-- `GET /api/<Model>` list rows
-- `POST /api/<Model>` create row (JSON or form)
-- `GET /api/<Model>/<id>` get row
-- `PUT|PATCH /api/<Model>/<id>` update row
-- `DELETE /api/<Model>/<id>` delete row
-
-## VibeWeb Design Customization
-- Admin UI theme lives in `vibeweb/server.py`:
-- `TAILWIND_HEAD` controls external CSS (Tailwind CDN + Google Fonts) and color/font tokens.
-- `THEME` is a single dict of Tailwind class strings used across the admin UI.
-- Gallery/home page design lives in `examples/index.html` (and `docs/index.html` for GitHub Pages).
-- To add extra CSS, add a `<style>` or `<link>` in `TAILWIND_HEAD` and/or `examples/index.html`.
-
-## VibeLang API Call Examples
-- See `examples/api-call/README.md` for the full list.
-- Example run:
-```bash
-python3 -m vibelang run examples/api-call/get_json.vbl.json
-```
-- Other files include `post_json.vbl.json`, `bearer_auth.vbl.json`, and `timeout_retry.vbl.json`.
-
-Structured statements (for `body.block` or `run.block`)
-- `{"set": {"name": "x", "value": <expr>}}`
-- `{"if": {"cond": <expr>, "then": [..], "else": [..]}}`
-- `{"for": {"var": "x", "iter": <expr>, "body": [..]}}`
-- `{"expr": <expr>}`
-- `{"return": <expr>}`
-
-## `.vbl` Syntax (S-Expression)
-Example (`examples/echo.vbl`):
-```
-(meta (name "Echo Pipeline") (version "0.1"))
-(input raw "  hello  ")
-
-(step normalize
-  (params text)
-  (return (call (attr text strip))))
-
-(step upper
-  (params text)
-  (guard "100%")
-  (return (call (attr text upper))))
-
-(run (upper (normalize raw)))
-```
-
-## Standard Library Bridge (`vibelang.std`)
-- `vbl.log(message, **fields)` writes to the execution report
-- `vbl.validate_jsonschema(data, schema)` (requires `jsonschema`)
-- `vbl.validate_pydantic(model, data)` (requires `pydantic`)
-- `vbl.parallel({...})` executes callables in a thread pool
