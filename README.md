@@ -1,6 +1,6 @@
 # VibePy
 
-[Live Demo](https://skill-deploy-r56hq1lmhq-codex-agent-deploys.vercel.app)
+[Live Demo](https://skill-deploy-sabrcj90gy-codex-agent-deploys.vercel.app)
 
 VibePy is a JSON-first, AI-friendly stack that combines **VibeLang** (a Python-compatible DSL) and **VibeWeb** (a full‑stack JSON spec for DB/API/UI). It runs on CPython and keeps the full Python ecosystem available.
 
