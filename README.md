@@ -4,14 +4,17 @@ VibePy is a JSON-first, AI-friendly stack that combines **VibeLang** (a Python-c
 
 ## Contents
 - Purpose / When You Need This
+- Comparison Table
 - VibeLang Overview
 - VibeLang Syntax (JSON IR)
 - VibeLang `.vbl` Syntax
 - VibeLang API Call Syntax
+- Hello AI Agent Example
 - VibeLang CLI
 - VibeWeb Overview
 - VibeWeb Spec (JSON)
 - VibeWeb API
+- VibeWeb Limitations
 - VibeWeb Design Syntax
 - VibeWeb CLI
 - Local LLM (GLM-4.7-Flash)
@@ -21,8 +24,19 @@ VibePy is a JSON-first, AI-friendly stack that combines **VibeLang** (a Python-c
 - Enforce step-level control, validation, and reproducible execution reports.
 - Generate and operate web apps from a single DB/backend/frontend spec (VibeWeb).
 
+## Comparison Table
+
+| Conventional Approach | VibePy |
+| --- | --- |
+| Write Python code directly | Author JSON / `.vbl` specs for LLMs |
+| Execution flow is hard to audit | Step-level execution report |
+| Web stack is assembled separately | DB + API + UI from one spec |
+| Reproducibility is inconsistent | Deterministic IR and runtime hooks |
+
 ## VibeLang Overview
 VibeLang is a JSON-first, AI-only authoring language that compiles to Python AST and runs on CPython for maximum compatibility.
+
+VibeLang is not designed for humans to write by hand. It is designed for LLMs to generate, and humans to review.
 
 Key characteristics
 - CPython execution (stdlib + Python packages)
@@ -141,6 +155,12 @@ Additional API examples
 - `examples/api-call/bearer_auth.vbl.json`
 - `examples/api-call/timeout_retry.vbl.json`
 
+## Hello AI Agent Example
+Quick end-to-end artifacts for “LLM → VibeLang → execution → report”:
+- `examples/agent/prompt.txt`
+- `examples/agent/generated.vbl.json`
+- `examples/agent/report.json`
+
 ## VibeLang CLI
 Validate a program:
 ```bash
@@ -242,6 +262,12 @@ Security + limits
 - `VIBEWEB_RATE_LIMIT`: requests/minute per IP (default 120)
 - `VIBEWEB_MAX_BODY_BYTES`: max JSON/form body size (default 1MB)
 - `VIBEWEB_AUDIT_LOG`: JSONL audit file path (default `.logs/vibeweb-audit.log`)
+
+## VibeWeb Limitations
+Not intended for:
+- High-traffic production apps
+- Complex frontend logic (SPA)
+- Multi-tenant auth systems
 
 ## VibeWeb Design Syntax
 The admin UI is defined by Tailwind class strings in a single theme map.

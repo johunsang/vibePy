@@ -1,0 +1,36 @@
+{
+  "meta": {
+    "name": "Hello AI Agent",
+    "version": "0.1"
+  },
+  "started_at": 1738630096.12,
+  "finished_at": 1738630096.17,
+  "duration_ms": 50,
+  "steps": [
+    {
+      "name": "normalize",
+      "status": "ok",
+      "duration_ms": 1,
+      "attempts": 1,
+      "error": null
+    },
+    {
+      "name": "classify",
+      "status": "ok",
+      "duration_ms": 3,
+      "attempts": 1,
+      "error": null
+    }
+  ],
+  "events": [
+    {"kind": "step_start", "ts": 1738630096.121, "step": "normalize", "attempt": 1},
+    {"kind": "step_end", "ts": 1738630096.122, "step": "normalize", "attempt": 1, "status": "ok", "duration_ms": 1},
+    {"kind": "step_start", "ts": 1738630096.123, "step": "classify", "attempt": 1},
+    {"kind": "step_end", "ts": 1738630096.126, "step": "classify", "attempt": 1, "status": "ok", "duration_ms": 3}
+  ],
+  "result": {
+    "text": "Ship the demo this week",
+    "label": "neutral",
+    "ts": "2026-02-04T02:34:56+00:00"
+  }
+}

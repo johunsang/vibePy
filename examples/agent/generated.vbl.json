@@ -1,0 +1,60 @@
+{
+  "meta": {
+    "name": "Hello AI Agent",
+    "version": "0.1"
+  },
+  "inputs": {
+    "raw": "Ship the demo this week"
+  },
+  "steps": [
+    {
+      "name": "normalize",
+      "params": ["text"],
+      "return": {
+        "call": {
+          "attr": {"base": {"name": "text"}, "attr": "strip"}
+        }
+      }
+    },
+    {
+      "name": "classify",
+      "params": ["text"],
+      "body": {
+        "block": [
+          {"set": {"name": "label", "value": {"literal": "neutral"}}},
+          {
+            "if": {
+              "cond": {"python": "\"good\" in text.lower() or \"great\" in text.lower()"},
+              "then": [
+                {"set": {"name": "label", "value": {"literal": "positive"}}}
+              ]
+            }
+          },
+          {
+            "if": {
+              "cond": {"python": "\"bad\" in text.lower() or \"late\" in text.lower()"},
+              "then": [
+                {"set": {"name": "label", "value": {"literal": "negative"}}}
+              ]
+            }
+          },
+          {
+            "return": {
+              "dict": {
+                "text": {"name": "text"},
+                "label": {"name": "label"},
+                "ts": {"call": "vbl.now_iso", "args": []}
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "run": {
+    "call": "classify",
+    "args": [
+      {"call": "normalize", "args": [{"name": "raw"}]}
+    ]
+  }
+}

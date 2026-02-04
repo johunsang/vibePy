@@ -43,6 +43,7 @@
 - Fail fast on guard or runtime errors
 
 ## Roadmap
-- Deterministic sandboxing and side-effect policy
-- IR-to-IR optimization and linting
-- Richer expression nodes and control flow
+- v0.2: Typed outputs + schema inference
+- v0.3: Async steps / streaming
+- v0.4: IR linting + optimization passes
+- v1.0: Stable IR + plugin system

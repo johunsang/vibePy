@@ -1,0 +1,7 @@
+Create a VibeLang JSON IR program that:
+- takes input `raw`
+- normalizes whitespace
+- classifies sentiment as positive / negative / neutral
+- returns a JSON object with {text, label, ts}
+- uses step functions only (no direct Python code blocks)
+Return ONLY valid JSON IR.

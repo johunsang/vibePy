@@ -143,3 +143,9 @@ Environment variables:
 - `VIBEWEB_AI_BASE_URL` (default: `http://127.0.0.1:8080/v1`)
 - `VIBEWEB_AI_MODEL` (default: `glm-4.7-flash`)
 - `VIBEWEB_AI_API_KEY` (optional)
+
+## Roadmap
+- v0.2: Relationship helpers and richer admin filters
+- v0.3: Async tasks and background jobs
+- v0.4: Static export (React or static HTML)
+- v1.0: Stable spec + plugin system
