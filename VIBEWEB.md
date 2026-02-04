@@ -95,8 +95,6 @@ Security + limits
 - `VIBEWEB_RATE_LIMIT`: requests/minute per IP (default 120)
 - `VIBEWEB_MAX_BODY_BYTES`: max JSON/form body size (default 1MB)
 - `VIBEWEB_AUDIT_LOG`: JSONL audit file path (default `.logs/vibeweb-audit.log`)
-- `VIBEWEB_ALLOW_IFRAME=1`: allow embedding in iframes (default off)
-- `VIBEWEB_FRAME_ANCESTORS`: CSP `frame-ancestors` value (default `'none'`)
 
 ## API Call Examples
 List rows:

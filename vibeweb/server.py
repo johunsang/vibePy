@@ -35,7 +35,7 @@ _BASE_CSP = (
     "font-src https://fonts.gstatic.com; "
     "img-src 'self' data:; "
     "connect-src 'self' https://cdn.tailwindcss.com; "
-    "frame-ancestors {frame_ancestors}"
+    "frame-ancestors 'none'"
 )
 
 TAILWIND_HEAD = (
@@ -119,11 +119,6 @@ def _esc(value: Any) -> str:
 
 def _csrf_field(token: str) -> str:
     return f"<input type=\"hidden\" name=\"csrf_token\" value=\"{_esc(token)}\"/>"
-
-
-def _csp_value() -> str:
-    frame_ancestors = os.environ.get("VIBEWEB_FRAME_ANCESTORS", "'none'")
-    return _BASE_CSP.format(frame_ancestors=frame_ancestors)
 
 
 def _normalize_row(model: ModelSpec, row: dict[str, Any]) -> dict[str, Any]:
@@ -740,12 +735,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def _apply_security_headers(self, *, is_html: bool = False) -> None:
         self.send_header("X-Content-Type-Options", "nosniff")
-        if os.environ.get("VIBEWEB_ALLOW_IFRAME") != "1":
-            self.send_header("X-Frame-Options", "DENY")
+        self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Permissions-Policy", "interest-cohort=()")
         if is_html:
-            self.send_header("Content-Security-Policy", _csp_value())
+            self.send_header("Content-Security-Policy", _BASE_CSP)
             self.send_header("Cache-Control", "no-store")
 
     def _query_rows(
