@@ -1,0 +1,27 @@
+{
+  "meta": {
+    "name": "Bearer Auth",
+    "version": "0.1"
+  },
+  "imports": ["urllib.request", "json"],
+  "steps": [
+    {
+      "name": "fetch_bearer",
+      "params": ["url", "token"],
+      "timeout": 10,
+      "body": [
+        "headers = {'Authorization': 'Bearer ' + token}",
+        "req = urllib.request.Request(url, headers=headers)",
+        "with urllib.request.urlopen(req, timeout=5) as resp:",
+        "    return json.loads(resp.read().decode('utf-8'))"
+      ]
+    }
+  ],
+  "run": {
+    "call": "fetch_bearer",
+    "args": [
+      {"literal": "https://httpbin.org/bearer"},
+      {"literal": "demo-token"}
+    ]
+  }
+}

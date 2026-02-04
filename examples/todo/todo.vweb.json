@@ -1,0 +1,35 @@
+{
+  "name": "Todo App",
+  "db": {
+    "path": "todo.db",
+    "models": [
+      {
+        "name": "Todo",
+        "fields": {
+          "title": "text",
+          "done": "bool",
+          "created_at": "datetime"
+        }
+      }
+    ]
+  },
+  "api": {
+    "crud": ["Todo"]
+  },
+  "ui": {
+    "admin": true,
+    "admin_path": "/admin",
+    "admin_auth": {
+      "type": "basic",
+      "username": "admin",
+      "password": "admin"
+    },
+    "pages": [
+      {
+        "path": "/",
+        "model": "Todo",
+        "title": "Todos"
+      }
+    ]
+  }
+}

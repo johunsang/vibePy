@@ -1,0 +1,55 @@
+{
+  "name": "Inventory Suite",
+  "db": {
+    "path": "inventory.db",
+    "models": [
+      {
+        "name": "Product",
+        "fields": {
+          "name": "text",
+          "sku": "text",
+          "price": "float",
+          "in_stock": "int",
+          "active": "bool",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Supplier",
+        "fields": {
+          "name": "text",
+          "email": "text",
+          "phone": "text",
+          "active": "bool",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Order",
+        "fields": {
+          "customer": "text",
+          "total": "float",
+          "status": "text",
+          "created_at": "datetime"
+        }
+      }
+    ]
+  },
+  "api": {
+    "crud": ["Product", "Supplier", "Order"]
+  },
+  "ui": {
+    "admin": true,
+    "admin_path": "/admin",
+    "admin_auth": {
+      "type": "basic",
+      "username": "admin",
+      "password": "admin"
+    },
+    "pages": [
+      {"path": "/products", "model": "Product", "title": "Products"},
+      {"path": "/suppliers", "model": "Supplier", "title": "Suppliers"},
+      {"path": "/orders", "model": "Order", "title": "Orders"}
+    ]
+  }
+}

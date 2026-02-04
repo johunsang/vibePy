@@ -1,0 +1,27 @@
+{
+  "meta": {
+    "name": "GET with Query Params",
+    "version": "0.1"
+  },
+  "imports": ["urllib.request", "urllib.parse", "json"],
+  "steps": [
+    {
+      "name": "fetch_with_params",
+      "params": ["base_url", "params"],
+      "timeout": 10,
+      "body": [
+        "query = urllib.parse.urlencode(params)",
+        "url = base_url + '?' + query",
+        "with urllib.request.urlopen(url, timeout=5) as resp:",
+        "    return json.loads(resp.read().decode('utf-8'))"
+      ]
+    }
+  ],
+  "run": {
+    "call": "fetch_with_params",
+    "args": [
+      {"literal": "https://httpbin.org/get"},
+      {"dict": {"search": {"literal": "vibe"}, "limit": {"literal": 5}}}
+    ]
+  }
+}

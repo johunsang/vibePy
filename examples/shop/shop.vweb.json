@@ -1,0 +1,48 @@
+{
+  "name": "VibeShop",
+  "db": {
+    "path": "shop.db",
+    "models": [
+      {
+        "name": "Customer",
+        "fields": {
+          "name": "text",
+          "email": "text",
+          "phone": "text",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Product",
+        "fields": {
+          "name": "text",
+          "sku": "text",
+          "price": "float",
+          "stock": "int",
+          "active": "bool",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Order",
+        "fields": {
+          "customer": "text",
+          "total": "float",
+          "status": "text",
+          "created_at": "datetime"
+        }
+      }
+    ]
+  },
+  "api": {"crud": ["Customer", "Product", "Order"]},
+  "ui": {
+    "admin": true,
+    "admin_path": "/admin",
+    "admin_auth": {"type": "basic", "username": "admin", "password": "admin"},
+    "pages": [
+      {"path": "/customers", "model": "Customer", "title": "Customers"},
+      {"path": "/products", "model": "Product", "title": "Products"},
+      {"path": "/orders", "model": "Order", "title": "Orders"}
+    ]
+  }
+}

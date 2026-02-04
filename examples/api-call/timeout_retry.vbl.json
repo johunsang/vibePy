@@ -1,0 +1,25 @@
+{
+  "meta": {
+    "name": "Timeout + Retry",
+    "version": "0.1"
+  },
+  "imports": ["urllib.request", "json"],
+  "steps": [
+    {
+      "name": "fetch_slow",
+      "params": ["url"],
+      "timeout": 4,
+      "retry": 2,
+      "body": [
+        "with urllib.request.urlopen(url, timeout=3) as resp:",
+        "    return json.loads(resp.read().decode('utf-8'))"
+      ]
+    }
+  ],
+  "run": {
+    "call": "fetch_slow",
+    "args": [
+      {"literal": "https://httpbin.org/delay/2"}
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "meta": {
+    "name": "GET JSON",
+    "version": "0.1"
+  },
+  "imports": ["urllib.request", "json"],
+  "steps": [
+    {
+      "name": "fetch_json",
+      "params": ["url"],
+      "timeout": 10,
+      "body": [
+        "with urllib.request.urlopen(url, timeout=5) as resp:",
+        "    data = resp.read().decode('utf-8')",
+        "    return json.loads(data)"
+      ]
+    }
+  ],
+  "run": {
+    "call": "fetch_json",
+    "args": [
+      {"literal": "https://jsonplaceholder.typicode.com/todos/1"}
+    ]
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "name": "VibeCRM",
+  "db": {
+    "path": "crm.db",
+    "models": [
+      {
+        "name": "Account",
+        "fields": {
+          "name": "text",
+          "industry": "text",
+          "stage": "text",
+          "active": "bool",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Contact",
+        "fields": {
+          "first_name": "text",
+          "last_name": "text",
+          "email": "text",
+          "phone": "text",
+          "title": "text",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Deal",
+        "fields": {
+          "name": "text",
+          "amount": "float",
+          "stage": "text",
+          "owner": "text",
+          "close_date": "datetime",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Activity",
+        "fields": {
+          "type": "text",
+          "summary": "text",
+          "due_at": "datetime",
+          "status": "text",
+          "created_at": "datetime"
+        }
+      }
+    ]
+  },
+  "api": {
+    "crud": ["Account", "Contact", "Deal", "Activity"]
+  },
+  "ui": {
+    "admin": true,
+    "admin_path": "/admin",
+    "admin_auth": {
+      "type": "basic",
+      "username": "admin",
+      "password": "admin"
+    },
+    "pages": [
+      {"path": "/accounts", "model": "Account", "title": "Accounts"},
+      {"path": "/contacts", "model": "Contact", "title": "Contacts"},
+      {"path": "/deals", "model": "Deal", "title": "Deals"},
+      {"path": "/activities", "model": "Activity", "title": "Activities"}
+    ]
+  }
+}

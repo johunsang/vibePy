@@ -1,0 +1,13 @@
+(meta (name "Echo Pipeline") (version "0.1"))
+(input raw "  hello  ")
+
+(step normalize
+  (params text)
+  (return (call (attr text strip))))
+
+(step upper
+  (params text)
+  (guard "100%")
+  (return (call (attr text upper))))
+
+(run (upper (normalize raw)))

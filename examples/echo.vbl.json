@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "name": "Echo Pipeline",
+    "version": "0.1"
+  },
+  "inputs": {
+    "raw": "  hello  "
+  },
+  "steps": [
+    {
+      "name": "normalize",
+      "params": ["text"],
+      "return": {
+        "call": {"attr": {"base": {"name": "text"}, "attr": "strip"}},
+        "args": []
+      }
+    },
+    {
+      "name": "upper",
+      "params": ["text"],
+      "guard": ["100%"],
+      "return": {
+        "call": {"attr": {"base": {"name": "text"}, "attr": "upper"}},
+        "args": []
+      }
+    }
+  ],
+  "run": {
+    "call": "upper",
+    "args": [
+      {
+        "call": "normalize",
+        "args": [{"name": "raw"}]
+      }
+    ]
+  }
+}

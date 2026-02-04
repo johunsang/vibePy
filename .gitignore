@@ -1,0 +1,7 @@
+third_party/llama.cpp
+third_party/llama.cpp-src
+third_party/llama.cpp-src/*
+third_party/llama.cpp-src/**/*
+.logs
+*.zip
+.git-bak

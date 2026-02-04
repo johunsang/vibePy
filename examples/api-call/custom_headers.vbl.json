@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "name": "Custom Headers",
+    "version": "0.1"
+  },
+  "imports": ["urllib.request", "json"],
+  "steps": [
+    {
+      "name": "fetch_headers",
+      "params": ["url", "headers"],
+      "timeout": 10,
+      "body": [
+        "req = urllib.request.Request(url, headers=headers)",
+        "with urllib.request.urlopen(req, timeout=5) as resp:",
+        "    return json.loads(resp.read().decode('utf-8'))"
+      ]
+    }
+  ],
+  "run": {
+    "call": "fetch_headers",
+    "args": [
+      {"literal": "https://httpbin.org/headers"},
+      {"dict": {"X-Client": {"literal": "vibe"}, "X-Trace": {"literal": "demo"}}}
+    ]
+  }
+}

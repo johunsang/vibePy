@@ -1,0 +1,48 @@
+{
+  "name": "VibeEdu",
+  "db": {
+    "path": "education.db",
+    "models": [
+      {
+        "name": "Course",
+        "fields": {
+          "title": "text",
+          "instructor": "text",
+          "credits": "int",
+          "active": "bool",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Student",
+        "fields": {
+          "first_name": "text",
+          "last_name": "text",
+          "email": "text",
+          "enrolled_at": "datetime"
+        }
+      },
+      {
+        "name": "Assignment",
+        "fields": {
+          "course": "text",
+          "title": "text",
+          "due_at": "datetime",
+          "status": "text",
+          "created_at": "datetime"
+        }
+      }
+    ]
+  },
+  "api": {"crud": ["Course", "Student", "Assignment"]},
+  "ui": {
+    "admin": true,
+    "admin_path": "/admin",
+    "admin_auth": {"type": "basic", "username": "admin", "password": "admin"},
+    "pages": [
+      {"path": "/courses", "model": "Course", "title": "Courses"},
+      {"path": "/students", "model": "Student", "title": "Students"},
+      {"path": "/assignments", "model": "Assignment", "title": "Assignments"}
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "meta": {
+    "name": "POST JSON",
+    "version": "0.1"
+  },
+  "imports": ["urllib.request", "json"],
+  "steps": [
+    {
+      "name": "post_json",
+      "params": ["url", "data"],
+      "timeout": 10,
+      "body": [
+        "payload = json.dumps(data).encode('utf-8')",
+        "req = urllib.request.Request(url, data=payload, method='POST')",
+        "req.add_header('Content-Type', 'application/json')",
+        "with urllib.request.urlopen(req, timeout=5) as resp:",
+        "    return json.loads(resp.read().decode('utf-8'))"
+      ]
+    }
+  ],
+  "run": {
+    "call": "post_json",
+    "args": [
+      {"literal": "https://httpbin.org/post"},
+      {"dict": {"title": {"literal": "hello"}, "active": {"literal": true}}}
+    ]
+  }
+}

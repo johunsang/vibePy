@@ -1,0 +1,49 @@
+{
+  "name": "VibeHealth",
+  "db": {
+    "path": "healthcare.db",
+    "models": [
+      {
+        "name": "Patient",
+        "fields": {
+          "first_name": "text",
+          "last_name": "text",
+          "email": "text",
+          "phone": "text",
+          "dob": "datetime",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Appointment",
+        "fields": {
+          "patient": "text",
+          "provider": "text",
+          "scheduled_at": "datetime",
+          "status": "text",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Visit",
+        "fields": {
+          "patient": "text",
+          "summary": "text",
+          "diagnosis": "text",
+          "created_at": "datetime"
+        }
+      }
+    ]
+  },
+  "api": {"crud": ["Patient", "Appointment", "Visit"]},
+  "ui": {
+    "admin": true,
+    "admin_path": "/admin",
+    "admin_auth": {"type": "basic", "username": "admin", "password": "admin"},
+    "pages": [
+      {"path": "/patients", "model": "Patient", "title": "Patients"},
+      {"path": "/appointments", "model": "Appointment", "title": "Appointments"},
+      {"path": "/visits", "model": "Visit", "title": "Visits"}
+    ]
+  }
+}
