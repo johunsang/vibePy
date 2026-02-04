@@ -5,3 +5,7 @@ third_party/llama.cpp-src/**/*
 .logs
 *.zip
 .git-bak
+*.db
+__pycache__/
+*.pyc
+*.pyo
