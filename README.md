@@ -1,7 +1,7 @@
-# 목적 / 언제 필요한가
-- Python 생태계(라이브러리, C-extension)를 그대로 쓰면서, AI가 수정하기 쉬운 JSON 스펙으로 작업하고 싶을 때
-- 코드 변경을 “step 단위”로 통제·검증하고 재현 가능한 실행 리포트를 얻고 싶을 때
-- 웹 앱을 DB/백/프론트 한 스펙으로 빠르게 생성·운영하고 싶을 때 (VibeWeb)
+# Purpose / When You Need This
+- When you want to keep the full Python ecosystem (libraries, C-extensions) but author in AI-friendly JSON specs.
+- When you need step-level control, validation, and reproducible execution reports.
+- When you want to generate and operate web apps from a single DB/backend/frontend spec (VibeWeb).
 
 # VibeLang (LLM-First Python-Compatible Language)
 
