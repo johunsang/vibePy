@@ -1,0 +1,48 @@
+{
+  "name": "VibePM",
+  "db": {
+    "path": "pm.db",
+    "models": [
+      {
+        "name": "Project",
+        "fields": {
+          "name": "text",
+          "owner": "text",
+          "status": "text",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Task",
+        "fields": {
+          "title": "text",
+          "assignee": "text",
+          "status": "text",
+          "due_at": "datetime",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "TeamMember",
+        "fields": {
+          "name": "text",
+          "email": "text",
+          "role": "text",
+          "active": "bool",
+          "created_at": "datetime"
+        }
+      }
+    ]
+  },
+  "api": {"crud": ["Project", "Task", "TeamMember"]},
+  "ui": {
+    "admin": true,
+    "admin_path": "/admin",
+    "admin_auth": {"type": "basic", "username": "admin", "password": "admin"},
+    "pages": [
+      {"path": "/projects", "model": "Project", "title": "Projects"},
+      {"path": "/tasks", "model": "Task", "title": "Tasks"},
+      {"path": "/team", "model": "TeamMember", "title": "Team"}
+    ]
+  }
+}

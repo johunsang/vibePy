@@ -1,0 +1,48 @@
+{
+  "name": "VibeEstate",
+  "db": {
+    "path": "realestate.db",
+    "models": [
+      {
+        "name": "Listing",
+        "fields": {
+          "title": "text",
+          "address": "text",
+          "price": "float",
+          "status": "text",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Agent",
+        "fields": {
+          "name": "text",
+          "email": "text",
+          "phone": "text",
+          "active": "bool",
+          "created_at": "datetime"
+        }
+      },
+      {        "name": "Inquiry",
+        "fields": {
+          "listing": "text",
+          "name": "text",
+          "email": "text",
+          "status": "text",
+          "created_at": "datetime"
+        }
+      }
+    ]
+  },
+  "api": {"crud": ["Listing", "Agent", "Inquiry"]},
+  "ui": {
+    "admin": true,
+    "admin_path": "/admin",
+    "admin_auth": {"type": "basic", "username": "admin", "password": "admin"},
+    "pages": [
+      {"path": "/listings", "model": "Listing", "title": "Listings"},
+      {"path": "/agents", "model": "Agent", "title": "Agents"},
+      {"path": "/inquiries", "model": "Inquiry", "title": "Inquiries"}
+    ]
+  }
+}

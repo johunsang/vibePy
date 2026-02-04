@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VibeWeb Examples</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ["Bricolage Grotesque", "sans-serif"],
+            mono: ["Space Mono", "monospace"],
+          },
+          colors: {
+            brand: {
+              50: "#f3ffe3",
+              400: "#b7ff5a",
+              600: "#7ed957",
+            },
+          },
+        },
+      },
+    };
+  </script>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-stone-50 via-lime-50 to-emerald-100 font-display text-slate-950">
+  <div class="pointer-events-none fixed inset-0 -z-10 opacity-40 bg-[linear-gradient(120deg,rgba(15,23,42,0.07)_1px,transparent_1px)] [background-size:36px_36px]"></div>
+
+  <main class="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10">
+    <section class="rounded-[30px] border-2 border-slate-900 bg-white p-8 shadow-[14px_14px_0_rgba(15,23,42,0.12)]">
+      <div class="flex flex-wrap items-center justify-between gap-6">
+        <div>
+          <p class="text-[11px] uppercase tracking-[0.45em] text-slate-500">VibeWeb Gallery</p>
+          <h1 class="mt-4 text-4xl font-semibold">Example Apps</h1>
+          <p class="mt-3 max-w-xl text-sm text-slate-700">Launch any spec with one command, then explore the auto-generated admin UI.</p>
+        </div>
+        <div class="flex flex-col gap-2 rounded-2xl border-2 border-slate-900 bg-brand-50 px-6 py-4 text-sm text-slate-700 shadow-[6px_6px_0_rgba(15,23,42,0.12)]">
+          <span class="font-semibold">Default admin</span>
+          <span class="rounded-full border border-slate-900 bg-brand-400 px-3 py-1 text-xs font-semibold text-slate-900">admin / admin</span>
+        </div>
+      </div>
+
+      <div class="mt-6 flex flex-wrap items-center gap-3 text-xs text-slate-600">
+        <span class="rounded-full border-2 border-slate-900 bg-white px-4 py-2 font-semibold shadow-[4px_4px_0_rgba(15,23,42,0.12)]">Tip: run with <span class="font-mono">--port 8001</span> to launch multiple apps.</span>
+        <span class="rounded-full border-2 border-slate-900 bg-white px-4 py-2 font-semibold shadow-[4px_4px_0_rgba(15,23,42,0.12)]">All specs are pure JSON.</span>
+      </div>
+    </section>
+
+    <section class="rounded-[30px] border-2 border-slate-900 bg-white p-8 shadow-[14px_14px_0_rgba(15,23,42,0.12)]">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p class="text-[11px] uppercase tracking-[0.45em] text-slate-500">Natural Language Builder</p>
+          <h2 class="mt-3 text-2xl font-semibold">Generate a new app</h2>
+          <p class="mt-2 text-sm text-slate-700">Powered by local GLM 4.8. Describe the app and download a ZIP.</p>
+        </div>
+        <div class="rounded-2xl border-2 border-slate-900 bg-brand-50 px-4 py-3 text-xs text-slate-800">
+          Endpoint: <span class="font-mono">POST /generate</span>
+        </div>
+      </div>
+      <form class="mt-6 grid gap-4 md:grid-cols-[1fr_auto]" method="post" action="/generate">
+        <textarea name="prompt" rows="4" class="w-full rounded-2xl border-2 border-slate-900 bg-white px-4 py-3 text-sm shadow-[4px_4px_0_rgba(15,23,42,0.1)]" placeholder="예: CRM for freelancers with clients, projects, invoices"></textarea>
+        <div class="flex flex-col gap-3">
+          <button class="rounded-2xl border-2 border-slate-900 bg-brand-400 px-6 py-3 text-sm font-semibold text-slate-900 shadow-[4px_4px_0_rgba(15,23,42,0.2)]" type="submit">Generate ZIP</button>
+          <p class="text-xs text-slate-600">Ensure local LLM server is running.</p>
+        </div>
+      </form>
+    </section>
+
+    <section class="grid gap-4 md:grid-cols-2">
+      <article class="rounded-3xl border-2 border-slate-900 bg-white p-6 shadow-[10px_10px_0_rgba(15,23,42,0.12)]">
+        <h2 class="text-xl font-semibold">Todo</h2>
+        <p class="mt-2 text-sm text-slate-700">Minimal CRUD starter.</p>
+        <div class="mt-4 flex flex-wrap gap-3 text-sm">
+          <a class="font-semibold text-slate-900 underline decoration-brand-400 decoration-4 underline-offset-4" href="./todo/todo.vweb.json">Spec file</a>
+          <a class="text-slate-600" href="http://127.0.0.1:8000/admin" target="_blank" rel="noreferrer">Admin (run first)</a>
+        </div>
+        <pre class="mt-4 rounded-2xl border-2 border-slate-900 bg-slate-900 px-4 py-3 font-mono text-xs text-slate-100">python3 -m vibeweb run examples/todo/todo.vweb.json</pre>
+      </article>
+
+      <article class="rounded-3xl border-2 border-slate-900 bg-white p-6 shadow-[10px_10px_0_rgba(15,23,42,0.12)]">
+        <h2 class="text-xl font-semibold">CRM</h2>
+        <p class="mt-2 text-sm text-slate-700">Accounts, contacts, deals, activities.</p>
+        <div class="mt-4 flex flex-wrap gap-3 text-sm">
+          <a class="font-semibold text-slate-900 underline decoration-brand-400 decoration-4 underline-offset-4" href="./crm/crm.vweb.json">Spec file</a>
+          <a class="text-slate-600" href="http://127.0.0.1:8000/admin" target="_blank" rel="noreferrer">Admin (run first)</a>
+        </div>
+        <pre class="mt-4 rounded-2xl border-2 border-slate-900 bg-slate-900 px-4 py-3 font-mono text-xs text-slate-100">python3 -m vibeweb run examples/crm/crm.vweb.json</pre>
+      </article>
+
+      <article class="rounded-3xl border-2 border-slate-900 bg-white p-6 shadow-[10px_10px_0_rgba(15,23,42,0.12)]">
+        <h2 class="text-xl font-semibold">Inventory</h2>
+        <p class="mt-2 text-sm text-slate-700">Products, suppliers, orders.</p>
+        <div class="mt-4 flex flex-wrap gap-3 text-sm">
+          <a class="font-semibold text-slate-900 underline decoration-brand-400 decoration-4 underline-offset-4" href="./inventory/inventory.vweb.json">Spec file</a>
+          <a class="text-slate-600" href="http://127.0.0.1:8000/admin" target="_blank" rel="noreferrer">Admin (run first)</a>
+        </div>
+        <pre class="mt-4 rounded-2xl border-2 border-slate-900 bg-slate-900 px-4 py-3 font-mono text-xs text-slate-100">python3 -m vibeweb run examples/inventory/inventory.vweb.json</pre>
+      </article>
+
+      <article class="rounded-3xl border-2 border-slate-900 bg-white p-6 shadow-[10px_10px_0_rgba(15,23,42,0.12)]">
+        <h2 class="text-xl font-semibold">Shop</h2>
+        <p class="mt-2 text-sm text-slate-700">Customers, products, orders.</p>
+        <div class="mt-4 flex flex-wrap gap-3 text-sm">
+          <a class="font-semibold text-slate-900 underline decoration-brand-400 decoration-4 underline-offset-4" href="./shop/shop.vweb.json">Spec file</a>
+          <a class="text-slate-600" href="http://127.0.0.1:8000/admin" target="_blank" rel="noreferrer">Admin (run first)</a>
+        </div>
+        <pre class="mt-4 rounded-2xl border-2 border-slate-900 bg-slate-900 px-4 py-3 font-mono text-xs text-slate-100">python3 -m vibeweb run examples/shop/shop.vweb.json</pre>
+      </article>
+
+      <article class="rounded-3xl border-2 border-slate-900 bg-white p-6 shadow-[10px_10px_0_rgba(15,23,42,0.12)]">
+        <h2 class="text-xl font-semibold">Healthcare</h2>
+        <p class="mt-2 text-sm text-slate-700">Patients, appointments, visits.</p>
+        <div class="mt-4 flex flex-wrap gap-3 text-sm">
+          <a class="font-semibold text-slate-900 underline decoration-brand-400 decoration-4 underline-offset-4" href="./healthcare/healthcare.vweb.json">Spec file</a>
+          <a class="text-slate-600" href="http://127.0.0.1:8000/admin" target="_blank" rel="noreferrer">Admin (run first)</a>
+        </div>
+        <pre class="mt-4 rounded-2xl border-2 border-slate-900 bg-slate-900 px-4 py-3 font-mono text-xs text-slate-100">python3 -m vibeweb run examples/healthcare/healthcare.vweb.json</pre>
+      </article>
+
+      <article class="rounded-3xl border-2 border-slate-900 bg-white p-6 shadow-[10px_10px_0_rgba(15,23,42,0.12)]">
+        <h2 class="text-xl font-semibold">Education</h2>
+        <p class="mt-2 text-sm text-slate-700">Courses, students, assignments.</p>
+        <div class="mt-4 flex flex-wrap gap-3 text-sm">
+          <a class="font-semibold text-slate-900 underline decoration-brand-400 decoration-4 underline-offset-4" href="./education/education.vweb.json">Spec file</a>
+          <a class="text-slate-600" href="http://127.0.0.1:8000/admin" target="_blank" rel="noreferrer">Admin (run first)</a>
+        </div>
+        <pre class="mt-4 rounded-2xl border-2 border-slate-900 bg-slate-900 px-4 py-3 font-mono text-xs text-slate-100">python3 -m vibeweb run examples/education/education.vweb.json</pre>
+      </article>
+
+      <article class="rounded-3xl border-2 border-slate-900 bg-white p-6 shadow-[10px_10px_0_rgba(15,23,42,0.12)]">
+        <h2 class="text-xl font-semibold">Real Estate</h2>
+        <p class="mt-2 text-sm text-slate-700">Listings, agents, inquiries.</p>
+        <div class="mt-4 flex flex-wrap gap-3 text-sm">
+          <a class="font-semibold text-slate-900 underline decoration-brand-400 decoration-4 underline-offset-4" href="./realestate/realestate.vweb.json">Spec file</a>
+          <a class="text-slate-600" href="http://127.0.0.1:8000/admin" target="_blank" rel="noreferrer">Admin (run first)</a>
+        </div>
+        <pre class="mt-4 rounded-2xl border-2 border-slate-900 bg-slate-900 px-4 py-3 font-mono text-xs text-slate-100">python3 -m vibeweb run examples/realestate/realestate.vweb.json</pre>
+      </article>
+
+      <article class="rounded-3xl border-2 border-slate-900 bg-white p-6 shadow-[10px_10px_0_rgba(15,23,42,0.12)]">
+        <h2 class="text-xl font-semibold">Project Management</h2>
+        <p class="mt-2 text-sm text-slate-700">Projects, tasks, team members.</p>
+        <div class="mt-4 flex flex-wrap gap-3 text-sm">
+          <a class="font-semibold text-slate-900 underline decoration-brand-400 decoration-4 underline-offset-4" href="./pm/pm.vweb.json">Spec file</a>
+          <a class="text-slate-600" href="http://127.0.0.1:8000/admin" target="_blank" rel="noreferrer">Admin (run first)</a>
+        </div>
+        <pre class="mt-4 rounded-2xl border-2 border-slate-900 bg-slate-900 px-4 py-3 font-mono text-xs text-slate-100">python3 -m vibeweb run examples/pm/pm.vweb.json</pre>
+      </article>
+    </section>
+
+    <section class="rounded-3xl border-2 border-slate-900 bg-white p-6 text-sm text-slate-700 shadow-[10px_10px_0_rgba(15,23,42,0.12)]">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <span>Want to add more? Use <span class="font-mono">vibeweb ai</span> to generate new specs.</span>
+        <span class="rounded-full border-2 border-slate-900 bg-brand-50 px-3 py-1 font-mono text-xs">python3 -m vibeweb ai --prompt "..."</span>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
