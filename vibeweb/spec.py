@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 
-ALLOWED_TYPES = {"text", "int", "float", "bool", "datetime"}
+ALLOWED_TYPES = {"text", "int", "float", "bool", "datetime", "json"}
 
 
 @dataclass
@@ -42,6 +42,14 @@ def load_spec(path: str) -> Dict[str, Any]:
     return data
 
 
+def _is_ref_type(field_type: str) -> bool:
+    return field_type.startswith("ref:") and len(field_type.split(":", 1)[1]) > 0
+
+
+def _ref_target(field_type: str) -> str:
+    return field_type.split(":", 1)[1]
+
+
 def validate_spec(spec: Dict[str, Any]) -> AppSpec:
     name = spec.get("name") or "VibeWeb App"
     if not isinstance(name, str):
@@ -58,7 +66,6 @@ def validate_spec(spec: Dict[str, Any]) -> AppSpec:
     if not isinstance(models_raw, list):
         raise ValueError("db.models must be a list")
 
-    models: List[ModelSpec] = []
     model_names: set[str] = set()
     for model in models_raw:
         if not isinstance(model, dict):
@@ -70,16 +77,30 @@ def validate_spec(spec: Dict[str, Any]) -> AppSpec:
             raise ValueError(f"duplicate model name: {model_name}")
         model_names.add(model_name)
 
+    models: List[ModelSpec] = []
+    for model in models_raw:
+        if not isinstance(model, dict):
+            raise ValueError("model must be an object")
+        model_name = model.get("name")
+        if not isinstance(model_name, str) or not model_name:
+            raise ValueError("model.name must be a string")
+
         fields = model.get("fields")
         if not isinstance(fields, dict) or not fields:
             raise ValueError(f"model.fields required for {model_name}")
         for field_name, field_type in fields.items():
             if not isinstance(field_name, str) or not field_name:
                 raise ValueError(f"invalid field name in {model_name}")
-            if field_type not in ALLOWED_TYPES:
+            if not isinstance(field_type, str):
+                raise ValueError(f"invalid field type in {model_name}.{field_name}")
+            if field_type not in ALLOWED_TYPES and not _is_ref_type(field_type):
                 raise ValueError(
-                    f"invalid field type '{field_type}' in {model_name} (allowed: {sorted(ALLOWED_TYPES)})"
+                    f"invalid field type '{field_type}' in {model_name} (allowed: {sorted(ALLOWED_TYPES)} or ref:<Model>)"
                 )
+            if _is_ref_type(field_type):
+                target = _ref_target(field_type)
+                if target not in model_names:
+                    raise ValueError(f"ref target '{target}' not found for {model_name}.{field_name}")
         models.append(ModelSpec(name=model_name, fields=fields))
 
     api = spec.get("api", {}) or {}

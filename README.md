@@ -78,6 +78,19 @@ Expression nodes
 - `{"parallel": [{"name": "a", "call": <expr>}, ...]}`
 - `{"python": "raw_expr"}` for raw Python expressions
 
+Structured statements (for `body.block` or `run.block`)
+- `{"set": {"name": "x", "value": <expr>}}`
+- `{"expr": <expr>}`
+- `{"return": <expr>}`
+- `{"if": {"cond": <expr>, "then": [..], "else": [..]}}`
+- `{"for": {"var": "x", "iter": <expr>, "body": [..]}}`
+- `{"while": {"cond": <expr>, "body": [..], "else": [..]}}`
+- `{"break": true}` / `{"continue": true}`
+- `{"with": {"items": [{"context": <expr>, "as": "var"}], "body": [..]}}`
+- `{"assert": {"cond": <expr>, "msg": <expr>}}`
+- `{"raise": <expr>}` or `{"raise": null}`
+- `{"python": "raw Python lines"}` for raw Python blocks
+
 Imports
 - `"json"`
 - `{ "import": "numpy", "as": "np" }`
@@ -204,7 +217,7 @@ Spec overview
 - `ui.admin_auth`: basic auth for admin page
 
 Field types
-- `text`, `int`, `float`, `bool`, `datetime`
+- `text`, `int`, `float`, `bool`, `datetime`, `json`, `ref:<Model>`
 
 ## VibeWeb API
 Routes
@@ -218,6 +231,17 @@ Query params
 - `q`: substring search across text fields
 - `sort`: `id` or field name
 - `dir`: `asc` or `desc`
+- `limit`: max rows (default 100, max 500)
+- `offset`: offset for pagination
+- `count=1`: return `{data, count, offset, limit}`
+- `expand`: comma-separated ref fields to expand (`field__ref`)
+- `f_<field>`: field filter (text uses `LIKE`, others exact)
+
+Security + limits
+- `VIBEWEB_API_KEY`: require `X-API-Key` or `Authorization: Bearer`
+- `VIBEWEB_RATE_LIMIT`: requests/minute per IP (default 120)
+- `VIBEWEB_MAX_BODY_BYTES`: max JSON/form body size (default 1MB)
+- `VIBEWEB_AUDIT_LOG`: JSONL audit file path (default `.logs/vibeweb-audit.log`)
 
 ## VibeWeb Design Syntax
 The admin UI is defined by Tailwind class strings in a single theme map.

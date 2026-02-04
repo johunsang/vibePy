@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from typing import Any, Dict, Iterable, List, Tuple
 
@@ -10,7 +11,14 @@ _SQL_TYPES = {
     "float": "REAL",
     "bool": "INTEGER",
     "datetime": "TEXT",
+    "json": "TEXT",
 }
+
+
+def _sql_type(field_type: str) -> str:
+    if field_type.startswith("ref:"):
+        return "INTEGER"
+    return _SQL_TYPES[field_type]
 
 
 def connect(path: str) -> sqlite3.Connection:
@@ -23,7 +31,7 @@ def ensure_schema(conn: sqlite3.Connection, models: Iterable[ModelSpec]) -> None
     for model in models:
         fields_sql = ["id INTEGER PRIMARY KEY AUTOINCREMENT"]
         for name, ftype in model.fields.items():
-            sql_type = _SQL_TYPES[ftype]
+            sql_type = _sql_type(ftype)
             fields_sql.append(f"{name} {sql_type}")
         sql = f"CREATE TABLE IF NOT EXISTS {model.name} (" + ", ".join(fields_sql) + ")"
         conn.execute(sql)
@@ -35,6 +43,7 @@ def list_rows(
     model: ModelSpec,
     *,
     limit: int = 100,
+    offset: int = 0,
     where: str = "",
     params: tuple[Any, ...] = (),
     order_by: str = "id DESC",
@@ -42,13 +51,22 @@ def list_rows(
     sql = f"SELECT * FROM {model.name}"
     if where:
         sql += " WHERE " + where
-    sql += f" ORDER BY {order_by} LIMIT ?"
-    cursor = conn.execute(sql, params + (limit,))
+    sql += f" ORDER BY {order_by} LIMIT ? OFFSET ?"
+    cursor = conn.execute(sql, params + (limit, offset))
     return [dict(row) for row in cursor.fetchall()]
 
 
-def count_rows(conn: sqlite3.Connection, model: ModelSpec) -> int:
-    cursor = conn.execute(f"SELECT COUNT(*) as count FROM {model.name}")
+def count_rows(
+    conn: sqlite3.Connection,
+    model: ModelSpec,
+    *,
+    where: str = "",
+    params: tuple[Any, ...] = (),
+) -> int:
+    sql = f"SELECT COUNT(*) as count FROM {model.name}"
+    if where:
+        sql += " WHERE " + where
+    cursor = conn.execute(sql, params)
     row = cursor.fetchone()
     return int(row["count"]) if row else 0
 
@@ -100,6 +118,16 @@ def delete_row(conn: sqlite3.Connection, model: ModelSpec, row_id: int) -> bool:
 def _coerce_value(field_type: str, value: Any) -> Any:
     if value is None:
         return None
+    if field_type.startswith("ref:"):
+        if value == "":
+            return None
+        return int(value)
+    if field_type == "json":
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=False)
+        if not isinstance(value, str):
+            return json.dumps(value, ensure_ascii=False)
+        return value
     if field_type == "bool":
         if isinstance(value, str):
             return 1 if value.lower() in ("1", "true", "yes", "on") else 0

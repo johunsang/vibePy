@@ -36,8 +36,14 @@ class ExecutionReport:
         self.finished_at = time.time()
 
     def to_dict(self) -> Dict[str, Any]:
+        duration_ms = None
+        if self.finished_at is not None:
+            duration_ms = int((self.finished_at - self.started_at) * 1000)
         return {
             "meta": self.meta,
+            "started_at": self.started_at,
+            "finished_at": self.finished_at,
+            "duration_ms": duration_ms,
             "steps": [
                 {
                     "name": s.name,
@@ -125,6 +131,7 @@ def step(
             attempts = max(1, 1 + int(retry))
             last_err: Optional[Exception] = None
             for attempt in range(1, attempts + 1):
+                log_event("step_start", step=fn.__name__, attempt=attempt)
                 started = time.perf_counter()
                 try:
                     with _TimeLimit(timeout):
@@ -143,6 +150,13 @@ def step(
                                 attempts=attempt,
                             )
                         )
+                    log_event(
+                        "step_end",
+                        step=fn.__name__,
+                        attempt=attempt,
+                        status="ok",
+                        duration_ms=duration_ms,
+                    )
                     return result
                 except Exception as exc:  # noqa: BLE001
                     last_err = exc
@@ -157,6 +171,14 @@ def step(
                                 error=f"{type(exc).__name__}: {exc}",
                             )
                         )
+                    log_event(
+                        "step_end",
+                        step=fn.__name__,
+                        attempt=attempt,
+                        status="error",
+                        duration_ms=duration_ms,
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
                     if attempt == attempts:
                         raise
             if last_err is not None:

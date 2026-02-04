@@ -23,7 +23,8 @@
 - Execution report captures timing, retries, errors, and events
 
 ## IR Statements
-- `set`, `if`, `for`, `expr`, `return`, `python` (raw)
+- `set`, `if`, `for`, `while`, `break`, `continue`, `expr`, `return`, `python` (raw)
+- `with`, `assert`, `raise`
 - Blocks are allowed in `run.block` and `step.body.block`
 
 ## Standard Library Bridge

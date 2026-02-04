@@ -52,6 +52,12 @@ def _validate_expr(expr: Any) -> None:
     if "dict" in expr:
         if not isinstance(expr["dict"], (list, dict)):
             raise ValueError("'dict' must be list or object")
+        if isinstance(expr["dict"], list):
+            for item in expr["dict"]:
+                if not isinstance(item, dict) or "key" not in item or "value" not in item:
+                    raise ValueError("'dict' list items must be objects with key/value")
+                _validate_expr(item["key"])
+                _validate_expr(item["value"])
     if "validate" in expr and not isinstance(expr["validate"], dict):
         raise ValueError("'validate' must be object")
     if "parallel" in expr and not isinstance(expr["parallel"], list):
@@ -102,6 +108,55 @@ def _validate_stmt(stmt: Any) -> None:
         for item in info["body"]:
             _validate_stmt(item)
         return
+    if "while" in stmt:
+        info = stmt["while"]
+        if not isinstance(info, dict) or "cond" not in info or "body" not in info:
+            raise ValueError("'while' statement requires cond/body")
+        _validate_expr(info["cond"])
+        if not isinstance(info["body"], list):
+            raise ValueError("'while.body' must be list")
+        for item in info["body"]:
+            _validate_stmt(item)
+        if "else" in info:
+            if not isinstance(info["else"], list):
+                raise ValueError("'while.else' must be list")
+            for item in info["else"]:
+                _validate_stmt(item)
+        return
+    if "break" in stmt:
+        return
+    if "continue" in stmt:
+        return
+    if "raise" in stmt:
+        if stmt["raise"] is not None:
+            _validate_expr(stmt["raise"])
+        return
+    if "with" in stmt:
+        info = stmt["with"]
+        if not isinstance(info, dict) or "items" not in info or "body" not in info:
+            raise ValueError("'with' statement requires items/body")
+        items = info["items"]
+        if not isinstance(items, list) or not items:
+            raise ValueError("'with.items' must be list")
+        for item in items:
+            if not isinstance(item, dict) or "context" not in item:
+                raise ValueError("'with.items' entries require context")
+            _validate_expr(item["context"])
+            if "as" in item and not isinstance(item["as"], str):
+                raise ValueError("'with.items.as' must be string")
+        if not isinstance(info["body"], list):
+            raise ValueError("'with.body' must be list")
+        for item in info["body"]:
+            _validate_stmt(item)
+        return
+    if "assert" in stmt:
+        info = stmt["assert"]
+        if not isinstance(info, dict) or "cond" not in info:
+            raise ValueError("'assert' statement requires cond")
+        _validate_expr(info["cond"])
+        if "msg" in info:
+            _validate_expr(info["msg"])
+        return
     raise ValueError("Unknown statement type")
 
 
@@ -147,12 +202,16 @@ def validate_ir(ir: Dict[str, Any]) -> None:
     if steps is not None:
         if not isinstance(steps, list):
             raise ValueError("'steps' must be a list")
+        seen_names: set[str] = set()
         for step in steps:
             if not isinstance(step, dict):
                 raise ValueError("Step must be an object")
             name = step.get("name")
             if not isinstance(name, str) or not _is_identifier(name):
                 raise ValueError("Step requires valid 'name'")
+            if name in seen_names:
+                raise ValueError(f"Duplicate step name: {name}")
+            seen_names.add(name)
             params = step.get("params", [])
             if not isinstance(params, list) or not all(isinstance(p, str) for p in params):
                 raise ValueError("Step 'params' must be list of strings")

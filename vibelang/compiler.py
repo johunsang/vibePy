@@ -140,6 +140,56 @@ def _stmt_to_lines(stmt: Dict[str, Any], indent: int, *, in_step: bool) -> List[
         else:
             lines.append(prefix + "    pass")
         return lines
+    if "while" in stmt:
+        info = stmt["while"]
+        cond = _expr_to_py(info["cond"])
+        lines = [prefix + f"while {cond}:"]
+        body = info.get("body", [])
+        if body:
+            for item in body:
+                lines.extend(_stmt_to_lines(item, indent + 4, in_step=in_step))
+        else:
+            lines.append(prefix + "    pass")
+        else_body = info.get("else", [])
+        if else_body:
+            lines.append(prefix + "else:")
+            for item in else_body:
+                lines.extend(_stmt_to_lines(item, indent + 4, in_step=in_step))
+        return lines
+    if "break" in stmt:
+        return [prefix + "break"]
+    if "continue" in stmt:
+        return [prefix + "continue"]
+    if "raise" in stmt:
+        value = stmt["raise"]
+        if value is None:
+            return [prefix + "raise"]
+        expr = _expr_to_py(value)
+        return [prefix + f"raise {expr}"]
+    if "with" in stmt:
+        info = stmt["with"]
+        items = []
+        for item in info["items"]:
+            ctx = _expr_to_py(item["context"])
+            if "as" in item and item["as"]:
+                items.append(f"{ctx} as {item['as']}")
+            else:
+                items.append(ctx)
+        lines = [prefix + f"with {', '.join(items)}:"]
+        body = info.get("body", [])
+        if body:
+            for item in body:
+                lines.extend(_stmt_to_lines(item, indent + 4, in_step=in_step))
+        else:
+            lines.append(prefix + "    pass")
+        return lines
+    if "assert" in stmt:
+        info = stmt["assert"]
+        cond = _expr_to_py(info["cond"])
+        if "msg" in info:
+            msg = _expr_to_py(info["msg"])
+            return [prefix + f"assert {cond}, {msg}"]
+        return [prefix + f"assert {cond}"]
     raise ValueError(f"Unsupported statement node: {stmt}")
 
 

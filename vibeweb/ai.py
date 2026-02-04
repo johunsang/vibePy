@@ -9,7 +9,7 @@ _SYSTEM_PROMPT = (
     "Return ONLY valid JSON (no markdown, no comments, no code fences). "
     "Spec format: {name, db:{path, models:[{name, fields:{field:type}}]}, api:{crud:[Model...]}, "
     "ui:{admin, admin_path, admin_auth:{type, username, password}, pages:[{path, model, title}]}}. "
-    "Allowed field types: text, int, float, bool, datetime. "
+    "Allowed field types: text, int, float, bool, datetime, json, ref:<Model>. "
     "Include admin enabled with admin_path '/admin' and admin_auth default admin/admin unless prompt says otherwise."
 )
 

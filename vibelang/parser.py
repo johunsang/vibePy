@@ -284,6 +284,60 @@ def _stmt(node: Any) -> Dict[str, Any]:
             raise ValueError("for body must be (do ...)")
         body = [_stmt(p) for p in body_part[1:]]
         return {"for": {"var": var, "iter": it, "body": body}}
+    if isinstance(head, Symbol) and head.name == "while":
+        if len(node) < 3:
+            raise ValueError("while requires condition and body")
+        cond = _expr(node[1])
+        body_part = node[2]
+        if not isinstance(body_part, list) or not body_part:
+            raise ValueError("while body must be (do ...)")
+        if _sym(body_part[0]) != "do":
+            raise ValueError("while body must be (do ...)")
+        body = [_stmt(p) for p in body_part[1:]]
+        return {"while": {"cond": cond, "body": body}}
+    if isinstance(head, Symbol) and head.name == "break":
+        return {"break": True}
+    if isinstance(head, Symbol) and head.name == "continue":
+        return {"continue": True}
+    if isinstance(head, Symbol) and head.name == "raise":
+        if len(node) == 1:
+            return {"raise": None}
+        if len(node) == 2:
+            return {"raise": _expr(node[1])}
+        raise ValueError("raise takes zero or one argument")
+    if isinstance(head, Symbol) and head.name == "assert":
+        if len(node) < 2:
+            raise ValueError("assert requires condition")
+        cond = _expr(node[1])
+        msg = _expr(node[2]) if len(node) > 2 else None
+        return {"assert": {"cond": cond, "msg": msg} if msg is not None else {"cond": cond}}
+    if isinstance(head, Symbol) and head.name == "with":
+        if len(node) < 3:
+            raise ValueError("with requires items and body")
+        items_node = node[1]
+        if not isinstance(items_node, list) or not items_node:
+            raise ValueError("with items must be a list")
+        items: List[Dict[str, Any]] = []
+        if items_node and isinstance(items_node[0], list):
+            for item in items_node:
+                if not isinstance(item, list) or not item:
+                    raise ValueError("with item must be (context var?)")
+                context = _expr(item[0])
+                if len(item) > 1:
+                    items.append({"context": context, "as": _sym(item[1])})
+                else:
+                    items.append({"context": context})
+        else:
+            context = _expr(items_node[0])
+            if len(items_node) > 1:
+                items.append({"context": context, "as": _sym(items_node[1])})
+            else:
+                items.append({"context": context})
+        body_part = node[2]
+        if not isinstance(body_part, list) or not body_part or _sym(body_part[0]) != "do":
+            raise ValueError("with body must be (do ...)")
+        body = [_stmt(p) for p in body_part[1:]]
+        return {"with": {"items": items, "body": body}}
     return {"expr": _expr(node)}
 
 

@@ -22,7 +22,7 @@ Model
 - `fields`: object of `field_name: field_type`
 
 Field types
-- `text`, `int`, `float`, `bool`, `datetime`
+- `text`, `int`, `float`, `bool`, `datetime`, `json`, `ref:<Model>`
 
 API
 - `api.crud`: list of models exposed as CRUD endpoints
@@ -84,6 +84,17 @@ Query params (list)
 - `q`: substring search across text fields
 - `sort`: `id` or field name
 - `dir`: `asc` or `desc`
+- `limit`: max rows (default 100, max 500)
+- `offset`: offset for pagination
+- `count=1`: return `{data, count, offset, limit}`
+- `expand`: comma-separated ref fields to expand (`field__ref`)
+- `f_<field>`: field filter (text uses `LIKE`, others exact)
+
+Security + limits
+- `VIBEWEB_API_KEY`: require `X-API-Key` or `Authorization: Bearer`
+- `VIBEWEB_RATE_LIMIT`: requests/minute per IP (default 120)
+- `VIBEWEB_MAX_BODY_BYTES`: max JSON/form body size (default 1MB)
+- `VIBEWEB_AUDIT_LOG`: JSONL audit file path (default `.logs/vibeweb-audit.log`)
 
 ## API Call Examples
 List rows:
