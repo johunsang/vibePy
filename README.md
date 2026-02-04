@@ -17,7 +17,7 @@ VibePy is a JSON-first, AI-friendly stack that combines **VibeLang** (a Python-c
 - VibeWeb Limitations
 - VibeWeb Design Syntax
 - VibeWeb CLI
-- Local LLM (GLM-4.7-Flash)
+- AI Generator (DeepSeek API)
 
 ## Purpose / When You Need This
 - Keep Python libraries and C-extensions, while authoring in AI-friendly JSON specs.
@@ -300,16 +300,17 @@ Examples homepage (served from root):
 python3 -m vibeweb gallery --root examples --host 127.0.0.1 --port 9000
 ```
 
-## Local LLM (GLM-4.7-Flash)
+## AI Generator (DeepSeek API)
 Natural language builder:
 ```bash
-export VIBEWEB_AI_BASE_URL="http://127.0.0.1:8080/v1"
-export VIBEWEB_AI_MODEL="glm-4.7-flash"
+export VIBEWEB_AI_BASE_URL="https://api.deepseek.com/v1"
+export VIBEWEB_AI_MODEL="deepseek-chat"
+export VIBEWEB_AI_API_KEY="YOUR_DEEPSEEK_KEY"
 python3 -m vibeweb gallery --root examples --host 127.0.0.1 --port 9000
 # Then open http://127.0.0.1:9000 and use the form to download a ZIP.
 ```
 
-Generate a spec with a local LLM:
+Generate a spec with DeepSeek:
 ```bash
 python3 -m vibeweb ai --prompt "simple todo app with title and done"
 ```

@@ -97,8 +97,8 @@ def generate_spec(
     temperature: float = 0.2,
 ) -> Dict[str, Any]:
     provider = provider.lower()
-    base_url = base_url or os.environ.get("VIBEWEB_AI_BASE_URL", "http://127.0.0.1:8080/v1")
-    model = model or os.environ.get("VIBEWEB_AI_MODEL", "glm-4.7-flash")
+    base_url = base_url or os.environ.get("VIBEWEB_AI_BASE_URL", "https://api.deepseek.com/v1")
+    model = model or os.environ.get("VIBEWEB_AI_MODEL", "deepseek-chat")
     api_key = api_key or os.environ.get("VIBEWEB_AI_API_KEY")
 
     messages = [

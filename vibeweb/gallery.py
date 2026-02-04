@@ -101,8 +101,8 @@ class GalleryHandler(BaseHTTPRequestHandler):
                 return
 
             provider = os.environ.get("VIBEWEB_AI_PROVIDER", "openai")
-            base_url = os.environ.get("VIBEWEB_AI_BASE_URL", "http://127.0.0.1:8080/v1")
-            model = os.environ.get("VIBEWEB_AI_MODEL", "glm-4.8")
+            base_url = os.environ.get("VIBEWEB_AI_BASE_URL", "https://api.deepseek.com/v1")
+            model = os.environ.get("VIBEWEB_AI_MODEL", "deepseek-chat")
             api_key = os.environ.get("VIBEWEB_AI_API_KEY")
             temperature = float(os.environ.get("VIBEWEB_AI_TEMPERATURE", "0.2"))
 

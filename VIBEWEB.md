@@ -133,17 +133,17 @@ curl -s -X DELETE http://127.0.0.1:8000/api/Todo/1
 - Uses SQLite via stdlib `sqlite3`.
 - HTML UI is intentionally minimal and generated on the fly.
 
-## AI Generator (Local GLM-4.7-Flash)
-Generate a spec from a prompt using a local LLM server.
+## AI Generator (DeepSeek API)
+Generate a spec from a prompt using DeepSeek API.
 
-OpenAI-compatible (llama.cpp-style):
+OpenAI-compatible (DeepSeek):
 ```bash
 python3 -m vibeweb ai --prompt "Inventory app with items and suppliers"
 ```
 
 Environment variables:
-- `VIBEWEB_AI_BASE_URL` (default: `http://127.0.0.1:8080/v1`)
-- `VIBEWEB_AI_MODEL` (default: `glm-4.7-flash`)
+- `VIBEWEB_AI_BASE_URL` (default: `https://api.deepseek.com/v1`)
+- `VIBEWEB_AI_MODEL` (default: `deepseek-chat`)
 - `VIBEWEB_AI_API_KEY` (optional)
 
 ## Roadmap
