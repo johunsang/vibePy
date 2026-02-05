@@ -199,12 +199,23 @@ def _build_zip(spec: dict) -> tuple[bytes, str]:
         "\n"
         "macOS double-click:\n"
         "- `run.command`\n"
+        "\n"
+        "Security (recommended):\n"
+        "- Copy `.env.example` to `.env` and set strong values.\n"
     )
     run_sh = (
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
         "APP_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n"
         "cd \"$APP_DIR\"\n"
+        "if [ -f .env ]; then\n"
+        "  set -a\n"
+        "  . .env\n"
+        "  set +a\n"
+        "fi\n"
+        "if [ -n \"${VIBEWEB_AUDIT_LOG:-}\" ]; then\n"
+        "  mkdir -p \"$(dirname \"$VIBEWEB_AUDIT_LOG\")\"\n"
+        "fi\n"
         "if [ ! -d .venv ]; then\n"
         "  python3 -m venv .venv\n"
         "fi\n"
@@ -227,6 +238,14 @@ def _build_zip(spec: dict) -> tuple[bytes, str]:
         "python -m vibeweb run app.vweb.json --host 127.0.0.1 --port 8000\\r\\n"
     )
     requirements = "git+https://github.com/johunsang/vibePy\n"
+    env_example = (
+        "VIBEWEB_ADMIN_USER=admin\n"
+        "VIBEWEB_ADMIN_PASSWORD=change_me\n"
+        "VIBEWEB_API_KEY=change_me\n"
+        "VIBEWEB_RATE_LIMIT=120\n"
+        "VIBEWEB_MAX_BODY_BYTES=1048576\n"
+        "VIBEWEB_AUDIT_LOG=.logs/vibeweb-audit.log\n"
+    )
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -236,6 +255,7 @@ def _build_zip(spec: dict) -> tuple[bytes, str]:
         zf.writestr(f"{slug}/run.command", run_command)
         zf.writestr(f"{slug}/run.bat", run_bat)
         zf.writestr(f"{slug}/requirements.txt", requirements)
+        zf.writestr(f"{slug}/.env.example", env_example)
     return buffer.getvalue(), f"{slug}.zip"
 
 

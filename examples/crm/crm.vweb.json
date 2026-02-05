@@ -8,7 +8,10 @@
         "fields": {
           "name": "text",
           "industry": "text",
-          "stage": "text",
+          "status": "text",
+          "owner": "text",
+          "website": "text",
+          "phone": "text",
           "active": "bool",
           "created_at": "datetime"
         }
@@ -16,6 +19,7 @@
       {
         "name": "Contact",
         "fields": {
+          "account": "ref:Account",
           "first_name": "text",
           "last_name": "text",
           "email": "text",
@@ -27,28 +31,95 @@
       {
         "name": "Deal",
         "fields": {
+          "account": "ref:Account",
           "name": "text",
           "amount": "float",
           "stage": "text",
+          "probability": "float",
           "owner": "text",
           "close_date": "datetime",
           "created_at": "datetime"
         }
       },
       {
+        "name": "Project",
+        "fields": {
+          "account": "ref:Account",
+          "name": "text",
+          "status": "text",
+          "start_date": "datetime",
+          "end_date": "datetime",
+          "budget": "float",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Invoice",
+        "fields": {
+          "account": "ref:Account",
+          "project": "ref:Project",
+          "number": "text",
+          "status": "text",
+          "subtotal": "float",
+          "tax": "float",
+          "total": "float",
+          "issued_at": "datetime",
+          "due_date": "datetime",
+          "paid": "bool",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Payment",
+        "fields": {
+          "invoice": "ref:Invoice",
+          "amount": "float",
+          "method": "text",
+          "paid_at": "datetime",
+          "reference": "text",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Task",
+        "fields": {
+          "account": "ref:Account",
+          "project": "ref:Project",
+          "deal": "ref:Deal",
+          "title": "text",
+          "status": "text",
+          "due_at": "datetime",
+          "owner": "text",
+          "created_at": "datetime"
+        }
+      },
+      {
         "name": "Activity",
         "fields": {
+          "account": "ref:Account",
+          "contact": "ref:Contact",
+          "deal": "ref:Deal",
           "type": "text",
           "summary": "text",
-          "due_at": "datetime",
           "status": "text",
+          "due_at": "datetime",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Note",
+        "fields": {
+          "account": "ref:Account",
+          "contact": "ref:Contact",
+          "deal": "ref:Deal",
+          "content": "text",
           "created_at": "datetime"
         }
       }
     ]
   },
   "api": {
-    "crud": ["Account", "Contact", "Deal", "Activity"]
+    "crud": ["Account", "Contact", "Deal", "Project", "Invoice", "Payment", "Task", "Activity", "Note"]
   },
   "ui": {
     "admin": true,
@@ -62,7 +133,12 @@
       {"path": "/accounts", "model": "Account", "title": "Accounts"},
       {"path": "/contacts", "model": "Contact", "title": "Contacts"},
       {"path": "/deals", "model": "Deal", "title": "Deals"},
-      {"path": "/activities", "model": "Activity", "title": "Activities"}
+      {"path": "/projects", "model": "Project", "title": "Projects"},
+      {"path": "/invoices", "model": "Invoice", "title": "Invoices"},
+      {"path": "/payments", "model": "Payment", "title": "Payments"},
+      {"path": "/tasks", "model": "Task", "title": "Tasks"},
+      {"path": "/activities", "model": "Activity", "title": "Activities"},
+      {"path": "/notes", "model": "Note", "title": "Notes"}
     ]
   }
 }
