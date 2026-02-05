@@ -19,6 +19,12 @@ class PageSpec:
     model: str
     title: str | None = None
     fields: List[str] | None = None
+    default_query: str | None = None
+    default_sort: str | None = None
+    default_dir: str | None = None
+    default_filters: Dict[str, str] | None = None
+    visible_fields: List[str] | None = None
+    hidden_fields: List[str] | None = None
 
 
 @dataclass
@@ -158,7 +164,74 @@ def validate_spec(spec: Dict[str, Any]) -> AppSpec:
         if fields is not None:
             if not isinstance(fields, list) or not all(isinstance(f, str) for f in fields):
                 raise ValueError("page.fields must be list of strings")
-        pages.append(PageSpec(path=path, model=model, title=title, fields=fields))
+        default_query = page.get("default_query")
+        if default_query is not None and not isinstance(default_query, str):
+            raise ValueError("page.default_query must be a string")
+        default_sort = page.get("default_sort")
+        if default_sort is not None and not isinstance(default_sort, str):
+            raise ValueError("page.default_sort must be a string")
+        default_dir = page.get("default_dir")
+        if default_dir is not None:
+            if not isinstance(default_dir, str) or default_dir.lower() not in ("asc", "desc"):
+                raise ValueError("page.default_dir must be 'asc' or 'desc'")
+        default_filters = page.get("default_filters")
+        if default_filters is not None:
+            if not isinstance(default_filters, dict):
+                raise ValueError("page.default_filters must be an object")
+            for key, value in default_filters.items():
+                if not isinstance(key, str):
+                    raise ValueError("page.default_filters keys must be strings")
+                if not isinstance(value, (str, int, float, bool)):
+                    raise ValueError("page.default_filters values must be string/number/bool")
+        visible_fields = page.get("visible_fields")
+        if visible_fields is not None:
+            if not isinstance(visible_fields, list) or not all(isinstance(f, str) for f in visible_fields):
+                raise ValueError("page.visible_fields must be list of strings")
+        hidden_fields = page.get("hidden_fields")
+        if hidden_fields is not None:
+            if not isinstance(hidden_fields, list) or not all(isinstance(f, str) for f in hidden_fields):
+                raise ValueError("page.hidden_fields must be list of strings")
+
+        # Validate per-model field references
+        model_fields = None
+        for m in models:
+            if m.name == model:
+                model_fields = set(m.fields.keys())
+                break
+        if model_fields:
+            if fields:
+                for field_name in fields:
+                    if field_name not in model_fields:
+                        raise ValueError(f"page.fields contains unknown field '{field_name}' for {model}")
+            if default_sort and default_sort != "id" and default_sort not in model_fields:
+                raise ValueError(f"page.default_sort unknown field '{default_sort}' for {model}")
+            if default_filters:
+                for field_name in default_filters.keys():
+                    if field_name not in model_fields:
+                        raise ValueError(f"page.default_filters unknown field '{field_name}' for {model}")
+            if visible_fields:
+                for field_name in visible_fields:
+                    if field_name not in model_fields:
+                        raise ValueError(f"page.visible_fields unknown field '{field_name}' for {model}")
+            if hidden_fields:
+                for field_name in hidden_fields:
+                    if field_name not in model_fields:
+                        raise ValueError(f"page.hidden_fields unknown field '{field_name}' for {model}")
+
+        pages.append(
+            PageSpec(
+                path=path,
+                model=model,
+                title=title,
+                fields=fields,
+                default_query=default_query,
+                default_sort=default_sort,
+                default_dir=default_dir.lower() if isinstance(default_dir, str) else None,
+                default_filters={k: str(v) for k, v in default_filters.items()} if default_filters else None,
+                visible_fields=visible_fields,
+                hidden_fields=hidden_fields,
+            )
+        )
 
     return AppSpec(
         name=name,

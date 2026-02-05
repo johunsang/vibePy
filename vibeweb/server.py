@@ -165,6 +165,18 @@ def _get_ref_choices(conn, model_map: dict[str, ModelSpec], model: ModelSpec) ->
         choices[field] = [(row.get("id"), _ref_label(target, row)) for row in rows]
     return choices
 
+
+def _select_fields(
+    fields: list[str],
+    visible_fields: list[str] | None,
+    hidden_fields: list[str] | None,
+) -> list[str]:
+    if visible_fields:
+        return [field for field in visible_fields if field in fields]
+    if hidden_fields:
+        return [field for field in fields if field not in hidden_fields]
+    return fields
+
 class VibeWebServer:
     def __init__(self, spec: AppSpec) -> None:
         self.spec = spec
@@ -172,6 +184,9 @@ class VibeWebServer:
         ensure_schema(self.conn, spec.models)
         self.model_map = {m.name: m for m in spec.models}
         self.page_map = {p.path: p for p in spec.pages}
+        self.page_by_model = {}
+        for page in spec.pages:
+            self.page_by_model.setdefault(page.model, page)
         self.csrf_token = secrets.token_urlsafe(32)
         rate = int(os.environ.get("VIBEWEB_RATE_LIMIT", "120"))
         self.rate_limiter = RateLimiter(rate)
@@ -438,6 +453,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_error(HTTPStatus.NOT_FOUND, "Unknown model")
             return
         model = self.server_ctx.model_map[model_name]
+        page_spec = self.server_ctx.page_by_model.get(model_name)
         if len(parts) == 2:
             try:
                 row_id = int(parts[1])
@@ -460,11 +476,18 @@ class Handler(BaseHTTPRequestHandler):
             parsed = urlparse(self.path)
             params = parse_qs(parsed.query)
             q = params.get("q", [""])[0].strip()
-            sort = params.get("sort", ["id"])[0]
-            direction = params.get("dir", ["desc"])[0]
+            if not q and page_spec and page_spec.default_query:
+                q = page_spec.default_query
+            sort = params.get("sort", [None])[0]
+            if not sort:
+                sort = page_spec.default_sort if page_spec and page_spec.default_sort else "id"
+            direction = params.get("dir", [None])[0]
+            if not direction:
+                direction = page_spec.default_dir if page_spec and page_spec.default_dir else "desc"
             limit = self._int_param(params, "limit", 200)
             page = self._int_param(params, "page", 1)
-            filters = self._parse_filters(model, params)
+            default_filters = page_spec.default_filters if page_spec else None
+            filters = self._parse_filters(model, params, default_filters=default_filters)
             offset = max(0, (max(1, page) - 1) * limit)
             rows = self._query_rows(
                 model,
@@ -491,6 +514,8 @@ class Handler(BaseHTTPRequestHandler):
                 total=total,
                 csrf_token=self.server_ctx.csrf_token,
                 ref_choices=ref_choices,
+                visible_fields=page_spec.visible_fields if page_spec else None,
+                hidden_fields=page_spec.hidden_fields if page_spec else None,
             )
         self._send_html(html)
 
@@ -649,7 +674,12 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(b"{\"error\":\"API key required\"}")
         return False
 
-    def _parse_filters(self, model: ModelSpec, params: dict[str, list[str]]) -> dict[str, str]:
+    def _parse_filters(
+        self,
+        model: ModelSpec,
+        params: dict[str, list[str]],
+        default_filters: dict[str, str] | None = None,
+    ) -> dict[str, str]:
         filters: dict[str, str] = {}
         for key, values in params.items():
             if not key.startswith("f_"):
@@ -659,6 +689,16 @@ class Handler(BaseHTTPRequestHandler):
                 raw = values[0]
                 if raw != "":
                     filters[field] = raw
+        if default_filters:
+            for field, value in default_filters.items():
+                if f"f_{field}" in params:
+                    continue
+                if field in filters:
+                    continue
+                if field in model.fields:
+                    raw = str(value)
+                    if raw != "":
+                        filters[field] = raw
         return filters
 
     def _int_param(self, params: dict[str, list[str]], name: str, default: int) -> int:
@@ -907,6 +947,8 @@ def render_admin_model(
     total: int,
     csrf_token: str,
     ref_choices: dict[str, list[tuple[Any, str]]],
+    visible_fields: list[str] | None = None,
+    hidden_fields: list[str] | None = None,
 ) -> str:
     safe_model = _esc(model.name)
     safe_q = _esc(q)
@@ -918,6 +960,7 @@ def render_admin_model(
         f"<span class=\"{THEME['header_tag']}\">{len(rows)} rows</span></header>"
     )
     fields = list(model.fields.keys())
+    table_fields = _select_fields(fields, visible_fields, hidden_fields)
     form_inputs = [
         _input_for(field, model.fields[field], choices=ref_choices.get(field)) for field in fields
     ]
@@ -954,7 +997,7 @@ def render_admin_model(
         + f"<input type=\"hidden\" name=\"limit\" value=\"{_esc(limit)}\"/>"
         + "</form></div>"
     )
-    header_row = "".join([f"<th class=\"{THEME['cell']} text-left\">{f}</th>" for f in ["id"] + fields])
+    header_row = "".join([f"<th class=\"{THEME['cell']} text-left\">{f}</th>" for f in ["id"] + table_fields])
     header_row += f"<th class=\"{THEME['cell']} text-left\">Actions</th>"
     ref_label_map: dict[str, dict[str, str]] = {}
     for field, options in ref_choices.items():
@@ -963,7 +1006,7 @@ def render_admin_model(
     for row in rows:
         row_id = _esc(row.get("id"))
         cells = [f"<td class=\"{THEME['cell']}\">{row_id}</td>"]
-        for field in fields:
+        for field in table_fields:
             value = row.get(field, "")
             ftype = model.fields.get(field, "")
             if _is_ref_type(ftype) and value not in ("", None):

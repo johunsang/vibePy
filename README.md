@@ -308,6 +308,18 @@ Core `THEME` keys
 
 Gallery design lives in `examples/index.html` (and `docs/index.html` for GitHub Pages).
 
+UI options per page (admin list view)
+```json
+{
+  "path": "/deals",
+  "model": "Deal",
+  "default_sort": "close_date",
+  "default_dir": "asc",
+  "default_filters": {"stage": "Open"},
+  "visible_fields": ["account", "name", "amount", "stage", "close_date"]
+}
+```
+
 ## VibeWeb UI Customization
 Two quick paths:
 1. Tailwind classes (fastest)

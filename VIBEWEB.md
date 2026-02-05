@@ -127,6 +127,27 @@ curl -s -X DELETE http://127.0.0.1:8000/api/Todo/1
 - Edit `THEME` to change the class strings for layout, buttons, tables, and cards.
 - Gallery homepage design is in `examples/index.html` (and `docs/index.html` for GitHub Pages).
 
+## Admin UI Options (Per Page)
+You can tune the admin list view on each page:
+- `default_query`: pre-filled search query.
+- `default_sort`: initial sort field (e.g. `created_at`).
+- `default_dir`: `asc` or `desc`.
+- `default_filters`: object of field → value.
+- `visible_fields`: show only these columns.
+- `hidden_fields`: hide these columns.
+
+Example:
+```json
+{
+  "path": "/invoices",
+  "model": "Invoice",
+  "default_sort": "due_date",
+  "default_dir": "asc",
+  "default_filters": {"status": "Open"},
+  "visible_fields": ["account", "number", "status", "total", "due_date", "paid"]
+}
+```
+
 ## Notes
 - Uses SQLite via stdlib `sqlite3`.
 - HTML UI is intentionally minimal and generated on the fly.

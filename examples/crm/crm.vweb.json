@@ -130,15 +130,82 @@
       "password": "admin"
     },
     "pages": [
-      {"path": "/accounts", "model": "Account", "title": "Accounts"},
-      {"path": "/contacts", "model": "Contact", "title": "Contacts"},
-      {"path": "/deals", "model": "Deal", "title": "Deals"},
-      {"path": "/projects", "model": "Project", "title": "Projects"},
-      {"path": "/invoices", "model": "Invoice", "title": "Invoices"},
-      {"path": "/payments", "model": "Payment", "title": "Payments"},
-      {"path": "/tasks", "model": "Task", "title": "Tasks"},
-      {"path": "/activities", "model": "Activity", "title": "Activities"},
-      {"path": "/notes", "model": "Note", "title": "Notes"}
+      {
+        "path": "/accounts",
+        "model": "Account",
+        "title": "Accounts",
+        "default_sort": "created_at",
+        "default_dir": "desc",
+        "visible_fields": ["name", "industry", "status", "owner", "active", "created_at"]
+      },
+      {
+        "path": "/contacts",
+        "model": "Contact",
+        "title": "Contacts",
+        "default_sort": "created_at",
+        "default_dir": "desc",
+        "visible_fields": ["account", "first_name", "last_name", "email", "phone", "title"]
+      },
+      {
+        "path": "/deals",
+        "model": "Deal",
+        "title": "Deals",
+        "default_sort": "close_date",
+        "default_dir": "asc",
+        "default_filters": {"stage": "Open"},
+        "visible_fields": ["account", "name", "amount", "stage", "probability", "owner", "close_date"]
+      },
+      {
+        "path": "/projects",
+        "model": "Project",
+        "title": "Projects",
+        "default_sort": "start_date",
+        "default_dir": "desc",
+        "default_filters": {"status": "Active"},
+        "visible_fields": ["account", "name", "status", "start_date", "end_date", "budget"]
+      },
+      {
+        "path": "/invoices",
+        "model": "Invoice",
+        "title": "Invoices",
+        "default_sort": "due_date",
+        "default_dir": "asc",
+        "default_filters": {"status": "Open"},
+        "visible_fields": ["account", "project", "number", "status", "total", "issued_at", "due_date", "paid"]
+      },
+      {
+        "path": "/payments",
+        "model": "Payment",
+        "title": "Payments",
+        "default_sort": "paid_at",
+        "default_dir": "desc",
+        "visible_fields": ["invoice", "amount", "method", "paid_at", "reference"]
+      },
+      {
+        "path": "/tasks",
+        "model": "Task",
+        "title": "Tasks",
+        "default_sort": "due_at",
+        "default_dir": "asc",
+        "default_filters": {"status": "Open"},
+        "visible_fields": ["account", "project", "deal", "title", "status", "due_at", "owner"]
+      },
+      {
+        "path": "/activities",
+        "model": "Activity",
+        "title": "Activities",
+        "default_sort": "due_at",
+        "default_dir": "asc",
+        "visible_fields": ["account", "contact", "deal", "type", "summary", "status", "due_at"]
+      },
+      {
+        "path": "/notes",
+        "model": "Note",
+        "title": "Notes",
+        "default_sort": "created_at",
+        "default_dir": "desc",
+        "visible_fields": ["account", "contact", "deal", "content", "created_at"]
+      }
     ]
   }
 }
