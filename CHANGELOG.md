@@ -6,6 +6,8 @@ The format is based on *Keep a Changelog* and this project adheres to *Semantic 
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-02-07
+
 ### Documentation
 - README: clarified GLM-4.7-Flash-first AI generator usage and added doc index links.
 
