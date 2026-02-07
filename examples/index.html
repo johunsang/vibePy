@@ -71,6 +71,7 @@
           <div class="flex flex-wrap gap-2">
             <button class="rounded-full border border-slate-900/10 bg-brand-400 px-3 py-1 text-xs font-semibold text-white" data-sample="todo">Load Todo</button>
             <button class="rounded-full border border-slate-900/10 bg-white px-3 py-1 text-xs font-semibold text-slate-700" data-sample="crm">Load CRM</button>
+            <button class="rounded-full border border-slate-900/10 bg-white px-3 py-1 text-xs font-semibold text-slate-700" data-sample="crm_advanced">Load CRM Advanced</button>
             <button class="rounded-full border border-slate-900/10 bg-white px-3 py-1 text-xs font-semibold text-slate-700" data-sample="inventory">Load Inventory</button>
           </div>
           <textarea id="playground-spec" rows="14" class="mt-4 w-full rounded-2xl border border-slate-900/10 bg-white px-4 py-3 font-mono text-xs shadow-[0_8px_16px_rgba(15,23,42,0.08)]"></textarea>
@@ -171,6 +172,16 @@
       </article>
 
       <article class="rounded-3xl border border-slate-900/10 bg-white p-6 shadow-[0_14px_28px_rgba(15,23,42,0.12)]">
+        <h2 class="text-xl font-semibold">CRM Advanced</h2>
+        <p class="mt-2 text-sm text-slate-700">Actions + hooks, LLM writeback, DB workflow hooks (when/when_changed), default filters/sort.</p>
+        <div class="mt-4 flex flex-wrap gap-3 text-sm">
+          <a class="font-semibold text-slate-900 underline decoration-brand-400 decoration-4 underline-offset-4" href="./crm/crm.advanced.vweb.json">Spec file</a>
+          <a class="text-slate-600" href="http://127.0.0.1:8000/admin" target="_blank" rel="noreferrer">Admin (run first)</a>
+        </div>
+        <pre class="mt-4 rounded-2xl border border-slate-900/10 bg-slate-900 px-4 py-3 font-mono text-xs text-slate-100">python3 -m vibeweb run examples/crm/crm.advanced.vweb.json</pre>
+      </article>
+
+      <article class="rounded-3xl border border-slate-900/10 bg-white p-6 shadow-[0_14px_28px_rgba(15,23,42,0.12)]">
         <h2 class="text-xl font-semibold">Inventory</h2>
         <p class="mt-2 text-sm text-slate-700">Products, suppliers, orders.</p>
         <div class="mt-4 flex flex-wrap gap-3 text-sm">
@@ -250,6 +261,11 @@
         label: "CRM",
         path: "./crm/crm.vweb.json",
         run: "python3 -m vibeweb run examples/crm/crm.vweb.json --port 8000"
+      },
+      crm_advanced: {
+        label: "CRM Advanced",
+        path: "./crm/crm.advanced.vweb.json",
+        run: "python3 -m vibeweb run examples/crm/crm.advanced.vweb.json --port 8000"
       },
       inventory: {
         label: "Inventory",

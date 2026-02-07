@@ -2,25 +2,8 @@
 
 [Live Demo](https://vibepy-gallery.onrender.com)
 
-## Quickstart
-Run the gallery (Natural Language Builder + ZIP download):
-```bash
-python3 -m venv ~/.venvs/vibepy
-source ~/.venvs/vibepy/bin/activate
-python3 -m pip install -U pip
-python3 -m pip install git+https://github.com/johunsang/vibePy
-python3 -m vibeweb gallery --root examples --host 127.0.0.1 --port 9000
-```
-Then open `http://127.0.0.1:9000`.
-
-Run a generated ZIP (one command):
-```bash
-cd "/path/to/your/downloaded-app"
-bash run.sh
-```
-Then open `http://127.0.0.1:8000/admin`.
-
-VibePy is a JSON-first, AI-friendly stack that combines **VibeLang** (a Python-compatible DSL) and **VibeWeb** (a full‑stack JSON spec for DB/API/UI). It runs on CPython and keeps the full Python ecosystem available.
+VibePy is a JSON-first, AI-friendly stack that combines **VibeLang** (a Python-compatible DSL) and **VibeWeb** (a full-stack JSON spec for DB/API/UI).
+It runs on CPython and keeps the full Python ecosystem available.
 
 ## Contents
 - Purpose / When You Need This
@@ -223,6 +206,7 @@ Example:
 ```json
 {
   "name": "Todo App",
+  "spec_version": 1,
   "db": {
     "path": "todo.db",
     "models": [
@@ -252,6 +236,7 @@ Spec overview
 - `name`: app name
 - `db.path`: sqlite file path
 - `db.models`: list of models and fields
+- Schema is additive: missing columns are automatically added when the spec evolves
 - `api.crud`: list of models to expose in API
 - `ui.pages`: list of UI pages
 - `ui.admin`: enable admin page
@@ -268,6 +253,39 @@ Routes
 - `GET /api/<Model>/<id>` get row
 - `PUT|PATCH /api/<Model>/<id>` update row
 - `DELETE /api/<Model>/<id>` delete row
+- `GET /api/meta` spec + runtime metadata
+- `GET /healthz` health check
+
+Actions (custom endpoints)
+- `api.actions` lets you define custom endpoints in JSON (`http`, `llm`, or internal `db`)
+- default action path: `/api/actions/<name>`
+
+DB action syntax (internal CRUD)
+```json
+{
+  "name": "create_invoice_from_deal",
+  "kind": "db",
+  "method": "POST",
+  "path": "/api/actions/create_invoice_from_deal",
+  "auth": "api",
+  "db": {
+    "op": "insert",
+    "model": "Invoice",
+    "data": {
+      "account": "${input.row.account}",
+      "number": "INV-${input.row_id}",
+      "status": "Open",
+      "total": "${input.row.amount}"
+    }
+  }
+}
+```
+
+Hooks (after CRUD)
+- `api.hooks` lets you run actions after CRUD events (`after_create|after_update|after_delete`)
+- optional `writeback` updates fields on the same row from the action result
+- optional `when_changed` (for `after_update`) skips the hook unless selected fields changed
+- optional `when` (for `after_update`) runs only when the updated row matches `{field: value}` conditions
 
 Query params
 - `q`: substring search across text fields
@@ -284,6 +302,7 @@ Security + limits
 - `VIBEWEB_RATE_LIMIT`: requests/minute per IP (default 120)
 - `VIBEWEB_MAX_BODY_BYTES`: max JSON/form body size (default 1MB)
 - `VIBEWEB_AUDIT_LOG`: JSONL audit file path (default `.logs/vibeweb-audit.log`)
+- `VIBEWEB_OUTBOUND_ALLOW_HOSTS`: outbound host allowlist for HTTP/LLM actions (or `*`)
 
 ## VibeWeb Limitations
 Not intended for:
@@ -292,21 +311,16 @@ Not intended for:
 - Multi-tenant auth systems
 
 ## VibeWeb Design Syntax
-The admin UI is defined by Tailwind class strings in a single theme map.
+VibeWeb is intentionally **spec-driven**: customize the look without patching Python code.
 
-Design surface (`vibeweb/server.py`)
-- `TAILWIND_HEAD`: external CSS (Tailwind CDN + Google Fonts) and tokens
-- `THEME`: class strings for layout, buttons, tables, and cards
+Use `ui.theme`:
+- `ui.theme.css_urls`: add external CSS (`https://...`) or a local static path (`/static/...`).
+- `ui.theme.tailwind_config`: merge additional Tailwind tokens (colors, fonts, etc).
+- `ui.theme.classes`: override any theme key with a class string.
 
-Core `THEME` keys
-- `body`, `grid_overlay`, `shell`, `container`, `topbar`, `brand`, `nav`, `nav_link`
-- `surface`, `header`, `header_title`, `header_subtitle`, `header_tag`
-- `panel`, `panel_title`, `form_grid`, `label`, `input`
-- `btn_primary`, `btn_dark`, `btn_outline`
-- `table_wrap`, `table`, `thead`, `tbody`, `row`, `cell`
-- `grid`, `card`, `card_title`, `badge`, `link`, `link_muted`, `stack`
+For the full list of theme keys, see `VIBEWEB.md`.
 
-Gallery design lives in `examples/index.html` (and `docs/index.html` for GitHub Pages).
+Gallery homepage design lives in `examples/index.html`.
 
 UI options per page (admin list view)
 ```json
@@ -321,18 +335,40 @@ UI options per page (admin list view)
 ```
 
 ## VibeWeb UI Customization
-Two quick paths:
-1. Tailwind classes (fastest)
-   - Edit the classes in `docs/index.html` and `examples/index.html`.
-   - This controls layout, colors, spacing, and typography.
+Customize VibeWeb without touching Python code by using `ui.theme`.
 
-2. External CSS (brand-grade)
-   - Add a `<link rel="stylesheet" href="...">` in the `<head>` of the UI pages.
-   - Keep the HTML structure intact and override only the CSS you need.
+Supported knobs
+- `ui.theme.css_urls`: add external CSS (`https://...`) or a local static path (`/static/...`)
+- `ui.theme.tailwind_config`: merge extra Tailwind tokens (colors, fonts, etc)
+- `ui.theme.classes`: override any theme key with class strings
 
-Notes
-- The gallery UI is plain HTML + Tailwind CDN, so edits are immediate.
-- If you keep the DOM structure stable, the API layer stays untouched.
+Example:
+```json
+{
+  "ui": {
+    "theme": {
+      "css_urls": [
+        "https://unpkg.com/@picocss/pico@2.0.6/css/pico.min.css"
+      ],
+      "tailwind_config": {
+        "theme": {
+          "extend": {
+            "colors": {
+              "brand": { "600": "#f04f33" }
+            }
+          }
+        }
+      },
+      "classes": {
+        "layout.page": "bg-slate-50 text-slate-900",
+        "card": "rounded-2xl border border-slate-900/10 bg-white shadow-sm"
+      }
+    }
+  }
+}
+```
+
+Note: the Gallery homepage design lives in `examples/index.html`.
 
 ## VibeWeb CLI
 Quick start
@@ -346,7 +382,7 @@ Examples homepage (served from root):
 python3 -m vibeweb gallery --root examples --host 127.0.0.1 --port 9000
 ```
 
-## AI Generator (DeepSeek API)
+## AI Generator (DeepSeek or GLM-4.7-Flash)
 Natural language builder:
 ```bash
 export VIBEWEB_AI_BASE_URL="https://api.deepseek.com/v1"
@@ -359,6 +395,14 @@ python3 -m vibeweb gallery --root examples --host 127.0.0.1 --port 9000
 Generate a spec with DeepSeek:
 ```bash
 python3 -m vibeweb ai --prompt "simple todo app with title and done"
+```
+
+Local model option (GLM-4.7-Flash via llama.cpp server):
+```bash
+bash scripts/run_glm47_server.sh
+export VIBEWEB_AI_BASE_URL="http://127.0.0.1:8080/v1"
+export VIBEWEB_AI_MODEL="glm-4.7-flash"
+python3 -m vibeweb gallery --root examples --host 127.0.0.1 --port 9000
 ```
 
 Admin credential overrides (recommended for security):

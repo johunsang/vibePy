@@ -7,13 +7,16 @@ import json
 import math
 import os
 import secrets
+import threading
 import time
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse, urlencode
 from typing import Any, Dict, Optional
 
+from vibeweb.actions import ActionError, action_debug_dict, execute_action
+from vibeweb.conditions import ConditionError, eval_condition
 from vibeweb.db import (
     connect,
     count_rows,
@@ -22,38 +25,86 @@ from vibeweb.db import (
     get_row,
     insert_row,
     list_rows,
+    normalize_row as db_normalize_row,
+    normalize_rows as db_normalize_rows,
     update_row,
 )
-from vibeweb.spec import AppSpec, ModelSpec, _is_ref_type, _ref_target
+from vibeweb.spec import AppSpec, ModelSpec, _is_ref_type, _ref_target, ActionSpec, HookSpec
 
 STATIC_DIR = Path(__file__).with_name("static")
 
-_BASE_CSP = (
-    "default-src 'self'; "
-    "script-src 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
-    "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
-    "font-src https://fonts.gstatic.com; "
-    "img-src 'self' data:; "
-    "connect-src 'self' https://cdn.tailwindcss.com; "
-    "frame-ancestors 'none'"
-)
-
-TAILWIND_HEAD = (
+_TAILWIND_FONTS = (
     "<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">"
     "<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>"
     "<link href=\"https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap\" rel=\"stylesheet\">"
-    "<script src=\"https://cdn.tailwindcss.com\"></script>"
-    "<script>"
-    "tailwind.config = {"
-    "theme: {"
-    "extend: {"
-    "fontFamily: { display: ['Urbanist', 'sans-serif'], mono: ['Space Mono', 'monospace'] },"
-    "colors: { brand: { 50: '#fff1ec', 400: '#ff6b4a', 600: '#f04f33' }, mint: { 400: '#1f9d8f' } }"
-    "}"
-    "}"
-    "}"
-    "</script>"
 )
+_TAILWIND_CDN = "<script src=\"https://cdn.tailwindcss.com\"></script>"
+
+_DEFAULT_TAILWIND_CONFIG: dict[str, Any] = {
+    "theme": {
+        "extend": {
+            "fontFamily": {
+                "display": ["Urbanist", "sans-serif"],
+                "mono": ["Space Mono", "monospace"],
+            },
+            "colors": {
+                "brand": {"50": "#fff1ec", "400": "#ff6b4a", "600": "#f04f33"},
+                "mint": {"400": "#1f9d8f"},
+            },
+        }
+    }
+}
+
+
+def _deep_merge_dict(a: Any, b: Any) -> Any:
+    if not isinstance(a, dict) or not isinstance(b, dict):
+        return b
+    out = dict(a)
+    for k, v in b.items():
+        if k in out and isinstance(out[k], dict) and isinstance(v, dict):
+            out[k] = _deep_merge_dict(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
+def _tailwind_head(app: AppSpec) -> str:
+    extra_css = "".join(
+        [f"<link rel=\"stylesheet\" href=\"{_esc(u)}\"/>" for u in (app.theme_css_urls or [])]
+    )
+    merged = _deep_merge_dict(_DEFAULT_TAILWIND_CONFIG, app.theme_tailwind_config or {})
+    config_js = json.dumps(merged, ensure_ascii=False)
+    return _TAILWIND_FONTS + extra_css + _TAILWIND_CDN + f"<script>tailwind.config = {config_js}</script>"
+
+
+def _build_csp(app: AppSpec) -> str:
+    style_src = ["'self'", "https://fonts.googleapis.com", "'unsafe-inline'"]
+    for raw in app.theme_css_urls or []:
+        if not isinstance(raw, str) or not raw.startswith("https://"):
+            continue
+        parsed = urlparse(raw)
+        if parsed.scheme == "https" and parsed.netloc:
+            origin = f"https://{parsed.netloc}"
+            if origin not in style_src:
+                style_src.append(origin)
+    directives: dict[str, list[str]] = {
+        "default-src": ["'self'"],
+        "script-src": ["'self'", "https://cdn.tailwindcss.com", "'unsafe-inline'"],
+        "style-src": style_src,
+        "font-src": ["https://fonts.gstatic.com"],
+        "img-src": ["'self'", "data:"],
+        "connect-src": ["'self'", "https://cdn.tailwindcss.com"],
+        "frame-ancestors": ["'none'"],
+    }
+    return "; ".join([f"{k} {' '.join(v)}" for k, v in directives.items()])
+
+
+def _theme(app: AppSpec) -> dict[str, str]:
+    merged = dict(THEME)
+    for k, v in (app.theme_classes or {}).items():
+        if isinstance(k, str) and k and isinstance(v, str) and v.strip():
+            merged[k] = v.strip()
+    return merged
 
 THEME = {
     "body": "min-h-screen font-display text-slate-900 bg-gradient-to-br from-[#f8f3ea] via-[#f1f6ff] to-[#e7fbf3]",
@@ -122,26 +173,11 @@ def _csrf_field(token: str) -> str:
 
 
 def _normalize_row(model: ModelSpec, row: dict[str, Any]) -> dict[str, Any]:
-    normalized: dict[str, Any] = {"id": row.get("id")}
-    for field, ftype in model.fields.items():
-        value = row.get(field)
-        if ftype == "bool":
-            normalized[field] = bool(int(value)) if value is not None else None
-        elif ftype == "json":
-            if isinstance(value, str):
-                try:
-                    normalized[field] = json.loads(value)
-                except Exception:
-                    normalized[field] = value
-            else:
-                normalized[field] = value
-        else:
-            normalized[field] = value
-    return normalized
+    return db_normalize_row(model, row)
 
 
 def _normalize_rows(model: ModelSpec, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [_normalize_row(model, row) for row in rows]
+    return db_normalize_rows(model, rows)
 
 
 def _ref_label(model: ModelSpec, row: dict[str, Any]) -> str:
@@ -177,25 +213,52 @@ def _select_fields(
         return [field for field in fields if field not in hidden_fields]
     return fields
 
+
 class VibeWebServer:
     def __init__(self, spec: AppSpec) -> None:
         self.spec = spec
-        self.conn = connect(spec.db_path)
+        self.db_lock = threading.RLock()
+        self.conn = connect(spec.db_path, check_same_thread=False)
         ensure_schema(self.conn, spec.models)
         self.model_map = {m.name: m for m in spec.models}
         self.page_map = {p.path: p for p in spec.pages}
         self.page_by_model = {}
         for page in spec.pages:
             self.page_by_model.setdefault(page.model, page)
+        self.actions_by_name: dict[str, ActionSpec] = {a.name: a for a in (spec.actions or [])}
+        self.actions_by_route: dict[tuple[str, str], ActionSpec] = {
+            (a.method.upper(), a.path): a for a in (spec.actions or [])
+        }
+        self.hooks_by_model_event: dict[tuple[str, str], list[HookSpec]] = {}
+        for hook in spec.hooks or []:
+            self.hooks_by_model_event.setdefault((hook.model, hook.event), []).append(hook)
         self.csrf_token = secrets.token_urlsafe(32)
+        self.csp = _build_csp(spec)
         rate = int(os.environ.get("VIBEWEB_RATE_LIMIT", "120"))
         self.rate_limiter = RateLimiter(rate)
         self.max_body_bytes = int(os.environ.get("VIBEWEB_MAX_BODY_BYTES", "1048576"))
         self.api_key = os.environ.get("VIBEWEB_API_KEY")
         self.audit_log_path = os.environ.get("VIBEWEB_AUDIT_LOG", ".logs/vibeweb-audit.log")
 
+    def audit(self, *, ip: str, method: str, path: str, **fields: Any) -> None:
+        log_path_value = self.audit_log_path
+        if not log_path_value:
+            return
+        record = {"ts": time.time(), "ip": ip, "method": method, "path": path}
+        record.update(fields)
+        try:
+            log_path = Path(log_path_value)
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with log_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
+
     def close(self) -> None:
-        self.conn.close()
+        try:
+            self.conn.close()
+        except Exception:
+            pass
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -205,8 +268,20 @@ class Handler(BaseHTTPRequestHandler):
         if not self._check_rate_limit():
             return
         parsed = urlparse(self.path)
+        if parsed.path == "/healthz":
+            self._send_json({"ok": True, "name": self.server_ctx.spec.name})
+            return
         if parsed.path.startswith("/static/"):
             self._serve_static(parsed.path)
+            return
+        action = self.server_ctx.actions_by_route.get(("GET", parsed.path))
+        if action:
+            self._handle_action(action, parsed.query)
+            return
+        if parsed.path == "/api/meta":
+            if not self._check_api_auth():
+                return
+            self._send_json(self._api_meta())
             return
         if parsed.path.startswith("/api/"):
             self._handle_api_get(parsed.path, parsed.query)
@@ -228,6 +303,10 @@ class Handler(BaseHTTPRequestHandler):
         if not self._check_rate_limit():
             return
         parsed = urlparse(self.path)
+        action = self.server_ctx.actions_by_route.get(("POST", parsed.path))
+        if action:
+            self._handle_action(action, parsed.query)
+            return
         if parsed.path.startswith("/api/"):
             self._handle_api_post(parsed.path)
             return
@@ -245,6 +324,10 @@ class Handler(BaseHTTPRequestHandler):
         if not self._check_rate_limit():
             return
         parsed = urlparse(self.path)
+        action = self.server_ctx.actions_by_route.get(("PUT", parsed.path))
+        if action:
+            self._handle_action(action, parsed.query)
+            return
         if parsed.path.startswith("/api/"):
             self._handle_api_put(parsed.path)
             return
@@ -257,6 +340,10 @@ class Handler(BaseHTTPRequestHandler):
         if not self._check_rate_limit():
             return
         parsed = urlparse(self.path)
+        action = self.server_ctx.actions_by_route.get(("DELETE", parsed.path))
+        if action:
+            self._handle_action(action, parsed.query)
+            return
         if parsed.path.startswith("/api/"):
             self._handle_api_delete(parsed.path)
             return
@@ -270,23 +357,283 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     def _audit(self, **fields: Any) -> None:
-        path = self.server_ctx.audit_log_path
-        if not path:
-            return
-        record = {
-            "ts": time.time(),
-            "ip": self.client_address[0],
-            "method": self.command,
-            "path": self.path,
+        self.server_ctx.audit(ip=self.client_address[0], method=self.command, path=self.path, **fields)
+
+    def _api_meta(self) -> dict[str, Any]:
+        return {
+            "name": self.server_ctx.spec.name,
+            "db": {"path": self.server_ctx.spec.db_path},
+            "models": [{"name": m.name, "fields": m.fields} for m in self.server_ctx.spec.models],
+            "api": {
+                "crud": list(self.server_ctx.spec.api_crud),
+                "actions": [action_debug_dict(a) for a in (self.server_ctx.spec.actions or [])],
+                "hooks": [
+                    {
+                        "model": h.model,
+                        "event": h.event,
+                        "action": h.action,
+                        "mode": h.mode,
+                        "writeback": h.writeback,
+                        "when_changed": getattr(h, "when_changed", None),
+                        "when": getattr(h, "when", None),
+                    }
+                    for h in (self.server_ctx.spec.hooks or [])
+                ],
+            },
         }
-        record.update(fields)
+
+    def _handle_action(self, action: ActionSpec, query: str) -> None:
+        if action.auth == "api":
+            if not self._check_api_auth():
+                return
+        elif action.auth == "admin":
+            if not self._check_admin_auth():
+                return
+
+        params = parse_qs(query)
+        query_one = {k: (v[0] if v else "") for k, v in params.items()}
+        payload: Any = {}
+        if self.command in ("POST", "PUT", "PATCH"):
+            data = self._read_payload()
+            if data is None:
+                return
+            payload = data
         try:
-            log_path = Path(path)
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            with log_path.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+            result = execute_action(
+                action,
+                input_data=payload,
+                query=query_one,
+                extra={
+                    "request": {
+                        "ip": self.client_address[0],
+                        "method": self.command,
+                        "path": urlparse(self.path).path,
+                    },
+                    "actions": self.server_ctx.actions_by_name,
+                    "services": {
+                        "db": {
+                            "conn": self.server_ctx.conn,
+                            "lock": self.server_ctx.db_lock,
+                            "models": self.server_ctx.model_map,
+                        }
+                    },
+                },
+            )
+        except ActionError as exc:
+            self._audit(action="action_error", action_name=action.name, error=str(exc))
+            self._send_error(HTTPStatus.BAD_REQUEST, str(exc))
+            return
+        except Exception as exc:  # noqa: BLE001
+            self._audit(action="action_error", action_name=action.name, error=str(exc))
+            self._send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc))
+            return
+
+        self._audit(action="action_call", action_name=action.name, ok=result.get("ok"), status=result.get("status"))
+        status_code = 200
+        try:
+            status_code = int(result.get("status") or (200 if result.get("ok") else 502))
         except Exception:
-            pass
+            status_code = 200 if result.get("ok") else 502
+        try:
+            self._send_json(result, status=HTTPStatus(status_code))
+        except ValueError:
+            self._send_json(result, status=HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_GATEWAY)
+
+    def _trigger_hooks(
+        self,
+        event: str,
+        model: ModelSpec,
+        *,
+        row_id: int | None,
+        row: dict[str, Any] | None,
+        payload: dict[str, Any] | None,
+        old: dict[str, Any] | None = None,
+        source: str,
+    ) -> None:
+        hooks = self.server_ctx.hooks_by_model_event.get((model.name, event), [])
+        if not hooks:
+            return
+
+        ip = self.client_address[0]
+        method = self.command
+        path = self.path
+        normalized_row = _normalize_row(model, row) if row else None
+        normalized_old = _normalize_row(model, old) if old else None
+        hook_input = {
+            "event": event,
+            "source": source,
+            "model": model.name,
+            "row_id": row_id,
+            "row": normalized_row,
+            "old": normalized_old,
+            "payload": payload or {},
+        }
+
+        def run_one(hook: HookSpec) -> None:
+            if (
+                getattr(hook, "when_changed", None)
+                and event == "after_update"
+                and normalized_row is not None
+                and normalized_old is not None
+            ):
+                fields = [f for f in (hook.when_changed or []) if isinstance(f, str)]
+                changed = any(normalized_row.get(f) != normalized_old.get(f) for f in fields)
+                if not changed:
+                    self.server_ctx.audit(
+                        ip=ip,
+                        method=method,
+                        path=path,
+                        action="hook_skip",
+                        hook_event=event,
+                        hook_model=model.name,
+                        hook_action=hook.action,
+                        reason="when_changed",
+                        fields=fields,
+                        row_id=row_id,
+                    )
+                    return
+
+            if getattr(hook, "when", None) and normalized_row is not None:
+                conditions = hook.when or {}
+                cond_obj: Any = conditions
+                # Backwards compatible: {"stage": "Closed Won"} means row.stage == "Closed Won".
+                if isinstance(conditions, dict) and not any(
+                    isinstance(k, str) and k.startswith("$") for k in conditions.keys()
+                ):
+                    rewritten: dict[str, Any] = {}
+                    for k, v in conditions.items():
+                        if isinstance(k, str) and "." not in k:
+                            rewritten[f"row.{k}"] = v
+                        else:
+                            rewritten[str(k)] = v
+                    cond_obj = rewritten
+
+                cond_ctx: dict[str, Any] = {
+                    "input": hook_input,
+                    "row": normalized_row,
+                    "old": normalized_old,
+                    "payload": payload or {},
+                    "env": dict(os.environ),
+                }
+                try:
+                    matched = bool(eval_condition(cond_obj, cond_ctx))
+                except ConditionError as exc:
+                    self.server_ctx.audit(
+                        ip=ip,
+                        method=method,
+                        path=path,
+                        action="hook_error",
+                        hook_event=event,
+                        hook_model=model.name,
+                        hook_action=hook.action,
+                        error=f"Invalid hook.when: {exc}",
+                        when=conditions,
+                        row_id=row_id,
+                    )
+                    return
+
+                if not matched:
+                    self.server_ctx.audit(
+                        ip=ip,
+                        method=method,
+                        path=path,
+                        action="hook_skip",
+                        hook_event=event,
+                        hook_model=model.name,
+                        hook_action=hook.action,
+                        reason="when",
+                        when=conditions,
+                        row_id=row_id,
+                    )
+                    return
+
+            action = self.server_ctx.actions_by_name.get(hook.action)
+            if not action:
+                self.server_ctx.audit(
+                    ip=ip,
+                    method=method,
+                    path=path,
+                    action="hook_error",
+                    hook_event=event,
+                    hook_model=model.name,
+                    hook_action=hook.action,
+                    error="Unknown action",
+                )
+                return
+            try:
+                result = execute_action(
+                    action,
+                    input_data=hook_input,
+                    query={},
+                    extra={
+                        "hook": {"model": hook.model, "event": hook.event},
+                        "request": {"ip": ip, "method": method, "path": path},
+                        "actions": self.server_ctx.actions_by_name,
+                        "services": {
+                            "db": {
+                                "conn": self.server_ctx.conn,
+                                "lock": self.server_ctx.db_lock,
+                                "models": self.server_ctx.model_map,
+                            }
+                        },
+                    },
+                )
+            except Exception as exc:  # noqa: BLE001
+                self.server_ctx.audit(
+                    ip=ip,
+                    method=method,
+                    path=path,
+                    action="hook_error",
+                    hook_event=event,
+                    hook_model=model.name,
+                    hook_action=hook.action,
+                    error=str(exc),
+                )
+                return
+
+            self.server_ctx.audit(
+                ip=ip,
+                method=method,
+                path=path,
+                action="hook_call",
+                hook_event=event,
+                hook_model=model.name,
+                hook_action=hook.action,
+                ok=result.get("ok"),
+                status=result.get("status"),
+            )
+
+            if not hook.writeback or not row_id:
+                return
+            data = result.get("data")
+            if not isinstance(data, dict):
+                return
+            patch: dict[str, Any] = {}
+            for field in hook.writeback:
+                if field in data:
+                    patch[field] = data.get(field)
+            if not patch:
+                return
+            with self.server_ctx.db_lock:
+                update_row(self.server_ctx.conn, model, int(row_id), patch)
+            self.server_ctx.audit(
+                ip=ip,
+                method=method,
+                path=path,
+                action="hook_writeback",
+                hook_event=event,
+                hook_model=model.name,
+                hook_action=hook.action,
+                row_id=row_id,
+                fields=list(patch.keys()),
+            )
+
+        for hook in hooks:
+            if hook.mode == "async":
+                t = threading.Thread(target=run_one, args=(hook,), daemon=True)
+                t.start()
+            else:
+                run_one(hook)
 
     def _handle_api_get(self, path: str, query: str) -> None:
         if not self._check_api_auth():
@@ -304,26 +651,29 @@ class Handler(BaseHTTPRequestHandler):
             filters = self._parse_filters(model, params)
             count = params.get("count", ["0"])[0] in ("1", "true", "yes")
             expand = self._parse_expand(model, params.get("expand", [""])[0])
-            rows = self._query_rows(
-                model,
-                q=q,
-                sort=sort,
-                direction=direction,
-                limit=limit,
-                offset=offset,
-                filters=filters,
-            )
+            with self.server_ctx.db_lock:
+                rows = self._query_rows(
+                    model,
+                    q=q,
+                    sort=sort,
+                    direction=direction,
+                    limit=limit,
+                    offset=offset,
+                    filters=filters,
+                )
             data = _normalize_rows(model, rows)
             if expand:
                 data = self._expand_refs(data, model, expand)
             if count:
                 where, params = self._where_clause(model, q, filters)
-                total = count_rows(self.server_ctx.conn, model, where=where, params=params)
+                with self.server_ctx.db_lock:
+                    total = count_rows(self.server_ctx.conn, model, where=where, params=params)
                 self._send_json({"data": data, "count": total, "offset": offset, "limit": limit})
             else:
                 self._send_json(data)
             return
-        row = get_row(self.server_ctx.conn, model, row_id)
+        with self.server_ctx.db_lock:
+            row = get_row(self.server_ctx.conn, model, row_id)
         if not row:
             self._send_error(HTTPStatus.NOT_FOUND, "Row not found")
             return
@@ -343,11 +693,20 @@ class Handler(BaseHTTPRequestHandler):
         if payload is None:
             return
         try:
-            row = insert_row(self.server_ctx.conn, model, payload)
+            with self.server_ctx.db_lock:
+                row = insert_row(self.server_ctx.conn, model, payload)
         except Exception as exc:  # noqa: BLE001
             self._send_error(HTTPStatus.BAD_REQUEST, str(exc))
             return
         self._audit(action="api_create", model=model.name, row_id=row.get("id"))
+        self._trigger_hooks(
+            "after_create",
+            model,
+            row_id=int(row.get("id")) if row.get("id") is not None else None,
+            row=row,
+            payload=payload,
+            source="api",
+        )
         self._send_json(_normalize_row(model, row), status=HTTPStatus.CREATED)
 
     def _handle_api_put(self, path: str) -> None:
@@ -359,11 +718,22 @@ class Handler(BaseHTTPRequestHandler):
         payload = self._read_payload()
         if payload is None:
             return
-        row = update_row(self.server_ctx.conn, model, row_id, payload)
+        with self.server_ctx.db_lock:
+            old = get_row(self.server_ctx.conn, model, row_id)
+            row = update_row(self.server_ctx.conn, model, row_id, payload)
         if not row:
             self._send_error(HTTPStatus.NOT_FOUND, "Row not found")
             return
         self._audit(action="api_update", model=model.name, row_id=row_id)
+        self._trigger_hooks(
+            "after_update",
+            model,
+            row_id=int(row_id),
+            row=row,
+            payload=payload,
+            old=old,
+            source="api",
+        )
         self._send_json(_normalize_row(model, row))
 
     def _handle_api_delete(self, path: str) -> None:
@@ -372,8 +742,20 @@ class Handler(BaseHTTPRequestHandler):
         model, row_id = self._parse_api_path(path)
         if not model or row_id is None:
             return
-        if delete_row(self.server_ctx.conn, model, row_id):
+        with self.server_ctx.db_lock:
+            old = get_row(self.server_ctx.conn, model, row_id)
+            deleted = delete_row(self.server_ctx.conn, model, row_id)
+        if deleted:
             self._audit(action="api_delete", model=model.name, row_id=row_id)
+            self._trigger_hooks(
+                "after_delete",
+                model,
+                row_id=int(row_id),
+                row=old,
+                payload=None,
+                old=old,
+                source="api",
+            )
             self._send_json({"ok": True})
             return
         self._send_error(HTTPStatus.NOT_FOUND, "Row not found")
@@ -385,8 +767,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send_error(HTTPStatus.NOT_FOUND, "No pages configured")
             return
         model = self.server_ctx.model_map[page.model]
-        rows = list_rows(self.server_ctx.conn, model, limit=100, offset=0)
-        ref_choices = _get_ref_choices(self.server_ctx.conn, self.server_ctx.model_map, model)
+        with self.server_ctx.db_lock:
+            rows = list_rows(self.server_ctx.conn, model, limit=100, offset=0)
+            ref_choices = _get_ref_choices(self.server_ctx.conn, self.server_ctx.model_map, model)
         html = render_page(self.server_ctx.spec, model, page, _normalize_rows(model, rows), ref_choices=ref_choices)
         self._send_html(html)
 
@@ -410,11 +793,20 @@ class Handler(BaseHTTPRequestHandler):
         payload.pop("csrf_token", None)
         if len(parts) == 2 and parts[1] == "create":
             try:
-                row = insert_row(self.server_ctx.conn, model, payload)
+                with self.server_ctx.db_lock:
+                    row = insert_row(self.server_ctx.conn, model, payload)
             except Exception as exc:  # noqa: BLE001
                 self._send_error(HTTPStatus.BAD_REQUEST, str(exc))
                 return
             self._audit(action="admin_create", model=model.name, row_id=row.get("id"))
+            self._trigger_hooks(
+                "after_create",
+                model,
+                row_id=int(row.get("id")) if row.get("id") is not None else None,
+                row=row,
+                payload=payload,
+                source="admin",
+            )
             self._redirect(f"{base}/{model_name}")
             return
         if len(parts) == 3 and parts[2] in ("update", "delete"):
@@ -424,16 +816,39 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_error(HTTPStatus.BAD_REQUEST, "Invalid row id")
                 return
             if parts[2] == "update":
-                row = update_row(self.server_ctx.conn, model, row_id, payload)
+                with self.server_ctx.db_lock:
+                    old = get_row(self.server_ctx.conn, model, row_id)
+                    row = update_row(self.server_ctx.conn, model, row_id, payload)
                 if not row:
                     self._send_error(HTTPStatus.NOT_FOUND, "Row not found")
                     return
                 self._audit(action="admin_update", model=model.name, row_id=row_id)
+                self._trigger_hooks(
+                    "after_update",
+                    model,
+                    row_id=int(row_id),
+                    row=row,
+                    payload=payload,
+                    old=old,
+                    source="admin",
+                )
                 self._redirect(f"{base}/{model_name}/{row_id}")
                 return
             if parts[2] == "delete":
-                if delete_row(self.server_ctx.conn, model, row_id):
+                with self.server_ctx.db_lock:
+                    old = get_row(self.server_ctx.conn, model, row_id)
+                    deleted = delete_row(self.server_ctx.conn, model, row_id)
+                if deleted:
                     self._audit(action="admin_delete", model=model.name, row_id=row_id)
+                    self._trigger_hooks(
+                        "after_delete",
+                        model,
+                        row_id=int(row_id),
+                        row=old,
+                        payload=None,
+                        old=old,
+                        source="admin",
+                    )
                     self._redirect(f"{base}/{model_name}")
                     return
                 self._send_error(HTTPStatus.NOT_FOUND, "Row not found")
@@ -460,11 +875,13 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError:
                 self._send_error(HTTPStatus.BAD_REQUEST, "Invalid row id")
                 return
-            row = get_row(self.server_ctx.conn, model, row_id)
+            with self.server_ctx.db_lock:
+                row = get_row(self.server_ctx.conn, model, row_id)
             if not row:
                 self._send_error(HTTPStatus.NOT_FOUND, "Row not found")
                 return
-            ref_choices = _get_ref_choices(self.server_ctx.conn, self.server_ctx.model_map, model)
+            with self.server_ctx.db_lock:
+                ref_choices = _get_ref_choices(self.server_ctx.conn, self.server_ctx.model_map, model)
             html = render_admin_edit(
                 self.server_ctx.spec,
                 model,
@@ -489,18 +906,19 @@ class Handler(BaseHTTPRequestHandler):
             default_filters = page_spec.default_filters if page_spec else None
             filters = self._parse_filters(model, params, default_filters=default_filters)
             offset = max(0, (max(1, page) - 1) * limit)
-            rows = self._query_rows(
-                model,
-                q=q,
-                sort=sort,
-                direction=direction,
-                limit=limit,
-                offset=offset,
-                filters=filters,
-            )
-            where, where_params = self._where_clause(model, q, filters)
-            total = count_rows(self.server_ctx.conn, model, where=where, params=where_params)
-            ref_choices = _get_ref_choices(self.server_ctx.conn, self.server_ctx.model_map, model)
+            with self.server_ctx.db_lock:
+                rows = self._query_rows(
+                    model,
+                    q=q,
+                    sort=sort,
+                    direction=direction,
+                    limit=limit,
+                    offset=offset,
+                    filters=filters,
+                )
+                where, where_params = self._where_clause(model, q, filters)
+                total = count_rows(self.server_ctx.conn, model, where=where, params=where_params)
+                ref_choices = _get_ref_choices(self.server_ctx.conn, self.server_ctx.model_map, model)
             html = render_admin_model(
                 self.server_ctx.spec,
                 model,
@@ -519,12 +937,69 @@ class Handler(BaseHTTPRequestHandler):
             )
         self._send_html(html)
 
+    def _read_chunked_body(self, *, max_bytes: int) -> bytes:
+        body = bytearray()
+        # Basic chunked-transfer decoding, good enough for proxied requests.
+        while True:
+            line = self.rfile.readline(64 * 1024)
+            if not line:
+                raise ValueError("Invalid chunked encoding")
+            # Strip CRLF; allow chunk extensions (e.g., `a3;foo=bar`).
+            line = line.strip()
+            if b";" in line:
+                line = line.split(b";", 1)[0]
+            try:
+                size = int(line.decode("ascii"), 16)
+            except Exception as exc:  # noqa: BLE001
+                raise ValueError("Invalid chunk size") from exc
+            if size == 0:
+                # Consume trailers (if any) up to the terminating empty line.
+                while True:
+                    trailer = self.rfile.readline(64 * 1024)
+                    if trailer in (b"\r\n", b"\n", b""):
+                        break
+                return bytes(body)
+            if len(body) + size > max_bytes:
+                raise ValueError("Payload too large")
+            chunk = self.rfile.read(size)
+            if len(chunk) != size:
+                raise ValueError("Invalid chunked encoding")
+            body.extend(chunk)
+            end = self.rfile.read(1)
+            if end == b"\r":
+                lf = self.rfile.read(1)
+                if lf != b"\n":
+                    raise ValueError("Invalid chunked encoding")
+            elif end != b"\n":
+                raise ValueError("Invalid chunked encoding")
+
+    def _read_body(self) -> bytes | None:
+        # Prefer Content-Length, but support chunked requests (common behind proxies).
+        raw_len = self.headers.get("Content-Length")
+        if raw_len is not None:
+            try:
+                length = int(raw_len)
+            except ValueError:
+                self._send_error(HTTPStatus.BAD_REQUEST, "Invalid Content-Length")
+                return None
+            if length > self.server_ctx.max_body_bytes:
+                self._send_error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "Payload too large")
+                return None
+            return self.rfile.read(length) if length > 0 else b""
+
+        te = (self.headers.get("Transfer-Encoding") or "").lower()
+        if "chunked" in te:
+            try:
+                return self._read_chunked_body(max_bytes=self.server_ctx.max_body_bytes)
+            except ValueError as exc:
+                self._send_error(HTTPStatus.BAD_REQUEST, str(exc))
+                return None
+        return b""
+
     def _read_payload(self) -> Optional[Dict[str, Any]]:
-        length = int(self.headers.get("Content-Length", "0"))
-        if length > self.server_ctx.max_body_bytes:
-            self._send_error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "Payload too large")
+        raw = self._read_body()
+        if raw is None:
             return None
-        raw = self.rfile.read(length) if length > 0 else b""
         content_type = (self.headers.get("Content-Type") or "").split(";")[0]
         if content_type == "application/json":
             if not raw:
@@ -731,7 +1206,8 @@ class Handler(BaseHTTPRequestHandler):
                 if not target or ref_id is None:
                     row[f"{field}__ref"] = None
                     continue
-                target_row = get_row(self.server_ctx.conn, target, int(ref_id))
+                with self.server_ctx.db_lock:
+                    target_row = get_row(self.server_ctx.conn, target, int(ref_id))
                 row[f"{field}__ref"] = _normalize_row(target, target_row) if target_row else None
         return rows
 
@@ -779,7 +1255,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Permissions-Policy", "interest-cohort=()")
         if is_html:
-            self.send_header("Content-Security-Policy", _BASE_CSP)
+            self.send_header("Content-Security-Policy", self.server_ctx.csp)
             self.send_header("Cache-Control", "no-store")
 
     def _query_rows(
@@ -813,10 +1289,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def render_shell(app: AppSpec, title: str, body: str, nav_links: list[tuple[str, str]] | None = None) -> str:
+    theme = _theme(app)
     links = nav_links or []
     nav = "".join(
         [
-            f"<a class=\"{THEME['nav_link']}\" href=\"{_esc(href)}\">{_esc(label)}</a>"
+            f"<a class=\"{theme['nav_link']}\" href=\"{_esc(href)}\">{_esc(label)}</a>"
             for label, href in links
         ]
     )
@@ -825,17 +1302,17 @@ def render_shell(app: AppSpec, title: str, body: str, nav_links: list[tuple[str,
     return (
         "<!doctype html><html><head><meta charset=\"utf-8\"/>"
         f"<title>{safe_title}</title>"
-        f"{TAILWIND_HEAD}"
+        f"{_tailwind_head(app)}"
         "</head>"
-        f"<body class=\"{THEME['body']}\">"
-        f"<div class=\"{THEME['grid_overlay']}\"></div>"
-        f"<div class=\"{THEME['shell']}\">"
-        f"<div class=\"{THEME['container']}\">"
-        f"<div class=\"{THEME['topbar']}\">"
-        f"<div class=\"{THEME['brand']}\">{safe_name}</div>"
-        f"<nav class=\"{THEME['nav']}\">{nav}</nav>"
+        f"<body class=\"{theme['body']}\">"
+        f"<div class=\"{theme['grid_overlay']}\"></div>"
+        f"<div class=\"{theme['shell']}\">"
+        f"<div class=\"{theme['container']}\">"
+        f"<div class=\"{theme['topbar']}\">"
+        f"<div class=\"{theme['brand']}\">{safe_name}</div>"
+        f"<nav class=\"{theme['nav']}\">{nav}</nav>"
         "</div>"
-        f"<main class=\"{THEME['surface']}\">"
+        f"<main class=\"{theme['surface']}\">"
         f"{body}</main>"
         "</div></div></body></html>"
     )
@@ -849,52 +1326,53 @@ def render_page(
     *,
     ref_choices: dict[str, list[tuple[Any, str]]] | None = None,
 ) -> str:
+    theme = _theme(app)
     fields = page.fields or list(model.fields.keys())
     title = page.title or f"{model.name}"
     safe_title = _esc(title)
     safe_model = _esc(model.name)
     header = (
-        f"<header class=\"{THEME['header']}\">"
-        f"<div><h1 class=\"{THEME['header_title']}\">{safe_title}</h1>"
-        f"<p class=\"{THEME['header_subtitle']}\">Auto-generated from {safe_model}</p></div>"
-        f"<span class=\"{THEME['header_tag']}\">{safe_model}</span>"
+        f"<header class=\"{theme['header']}\">"
+        f"<div><h1 class=\"{theme['header_title']}\">{safe_title}</h1>"
+        f"<p class=\"{theme['header_subtitle']}\">Auto-generated from {safe_model}</p></div>"
+        f"<span class=\"{theme['header_tag']}\">{safe_model}</span>"
         "</header>"
     )
 
     form_inputs = []
     for field in fields:
         ftype = model.fields[field]
-        input_html = _input_for(field, ftype, choices=(ref_choices or {}).get(field))
+        input_html = _input_for(field, ftype, theme=theme, choices=(ref_choices or {}).get(field))
         form_inputs.append(input_html)
     form = (
-        f"<div class=\"{THEME['panel']}\">"
-        f"<h2 class=\"{THEME['panel_title']}\">Create</h2>"
+        f"<div class=\"{theme['panel']}\">"
+        f"<h2 class=\"{theme['panel_title']}\">Create</h2>"
         f"<form method=\"post\" action=\"/api/{safe_model}\" "
         f"enctype=\"application/x-www-form-urlencoded\">"
-        f"<div class=\"{THEME['form_grid']}\">"
+        f"<div class=\"{theme['form_grid']}\">"
         + "".join(form_inputs)
         + "</div><div class=\"mt-4 flex justify-end\">"
-        f"<button class=\"{THEME['btn_primary']}\" "
+        f"<button class=\"{theme['btn_primary']}\" "
         "type=\"submit\">Create</button></div></form></div>"
     )
 
     header_row = "".join(
-        [f"<th class=\"{THEME['cell']} text-left\">{_esc(f)}</th>" for f in ["id"] + fields]
+        [f"<th class=\"{theme['cell']} text-left\">{_esc(f)}</th>" for f in ["id"] + fields]
     )
     body_rows = []
     for row in rows:
-        cells = [f"<td class=\"{THEME['cell']}\">{_esc(row.get('id'))}</td>"]
+        cells = [f"<td class=\"{theme['cell']}\">{_esc(row.get('id'))}</td>"]
         for field in fields:
-            cells.append(f"<td class=\"{THEME['cell']}\">{_esc(row.get(field, ''))}</td>")
-        body_rows.append(f"<tr class=\"{THEME['row']}\">" + "".join(cells) + "</tr>")
+            cells.append(f"<td class=\"{theme['cell']}\">{_esc(row.get(field, ''))}</td>")
+        body_rows.append(f"<tr class=\"{theme['row']}\">" + "".join(cells) + "</tr>")
     table = (
-        f"<div class=\"{THEME['panel']}\">"
-        f"<h2 class=\"{THEME['panel_title']}\">Entries</h2>"
-        f"<div class=\"{THEME['table_wrap']}\">"
-        f"<table class=\"{THEME['table']}\">"
-        f"<thead class=\"{THEME['thead']}\"><tr>"
+        f"<div class=\"{theme['panel']}\">"
+        f"<h2 class=\"{theme['panel_title']}\">Entries</h2>"
+        f"<div class=\"{theme['table_wrap']}\">"
+        f"<table class=\"{theme['table']}\">"
+        f"<thead class=\"{theme['thead']}\"><tr>"
         + header_row
-        + f"</tr></thead><tbody class=\"{THEME['tbody']}\">"
+        + f"</tr></thead><tbody class=\"{theme['tbody']}\">"
         + "".join(body_rows)
         + "</tbody></table></div></div>"
     )
@@ -903,32 +1381,33 @@ def render_page(
     if app.admin_enabled:
         nav_links.append(("Admin", app.admin_path))
     nav_links.append(("API", f"/api/{model.name}"))
-    body = f"<div class=\"{THEME['stack']}\">" + header + form + table + "</div>"
+    body = f"<div class=\"{theme['stack']}\">" + header + form + table + "</div>"
     return render_shell(app, title, body, nav_links=nav_links)
 
 def render_admin_home(app: AppSpec, models: dict[str, ModelSpec]) -> str:
+    theme = _theme(app)
     conn = connect(app.db_path)
     cards = []
     for model in models.values():
         count = count_rows(conn, model)
         safe_model = _esc(model.name)
         cards.append(
-            f"<div class=\"{THEME['card']}\">"
-            f"<h3 class=\"{THEME['card_title']}\">{safe_model}</h3>"
-            f"<p class=\"mt-2\"><span class=\"{THEME['badge']}\">{count} rows</span></p>"
+            f"<div class=\"{theme['card']}\">"
+            f"<h3 class=\"{theme['card_title']}\">{safe_model}</h3>"
+            f"<p class=\"mt-2\"><span class=\"{theme['badge']}\">{count} rows</span></p>"
             f"<p class=\"mt-4 flex gap-3 text-sm font-semibold\">"
-            f"<a class=\"{THEME['link']}\" href=\"{_esc(app.admin_path)}/{safe_model}\">Manage</a>"
-            f"<a class=\"{THEME['link_muted']}\" href=\"/api/{safe_model}\">API</a></p>"
+            f"<a class=\"{theme['link']}\" href=\"{_esc(app.admin_path)}/{safe_model}\">Manage</a>"
+            f"<a class=\"{theme['link_muted']}\" href=\"/api/{safe_model}\">API</a></p>"
             "</div>"
         )
     conn.close()
     header = (
-        f"<header class=\"{THEME['header']}\">"
-        f"<div><h1 class=\"{THEME['header_title']}\">Admin</h1>"
-        f"<p class=\"{THEME['header_subtitle']}\">System overview</p></div>"
-        f"<span class=\"{THEME['header_tag']}\">Dashboard</span></header>"
+        f"<header class=\"{theme['header']}\">"
+        f"<div><h1 class=\"{theme['header_title']}\">Admin</h1>"
+        f"<p class=\"{theme['header_subtitle']}\">System overview</p></div>"
+        f"<span class=\"{theme['header_tag']}\">Dashboard</span></header>"
     )
-    body = header + f"<div class=\"{THEME['grid']}\">" + "".join(cards) + "</div>"
+    body = header + f"<div class=\"{theme['grid']}\">" + "".join(cards) + "</div>"
     nav_links = [("Home", "/")]
     return render_shell(app, "Admin", body, nav_links=nav_links)
 
@@ -950,88 +1429,93 @@ def render_admin_model(
     visible_fields: list[str] | None = None,
     hidden_fields: list[str] | None = None,
 ) -> str:
+    theme = _theme(app)
     safe_model = _esc(model.name)
     safe_q = _esc(q)
     title = f"{model.name} Admin"
     header = (
-        f"<header class=\"{THEME['header']}\">"
-        f"<div><h1 class=\"{THEME['header_title']}\">{safe_model}</h1>"
+        f"<header class=\"{theme['header']}\">"
+        f"<div><h1 class=\"{theme['header_title']}\">{safe_model}</h1>"
         f"<p class=\"text-xs uppercase tracking-[0.3em] text-slate-500\">/{safe_model}</p></div>"
-        f"<span class=\"{THEME['header_tag']}\">{len(rows)} rows</span></header>"
+        f"<span class=\"{theme['header_tag']}\">{len(rows)} rows</span></header>"
     )
     fields = list(model.fields.keys())
     table_fields = _select_fields(fields, visible_fields, hidden_fields)
     form_inputs = [
-        _input_for(field, model.fields[field], choices=ref_choices.get(field)) for field in fields
+        _input_for(field, model.fields[field], theme=theme, choices=ref_choices.get(field)) for field in fields
     ]
     form = (
-        f"<div class=\"{THEME['panel']}\">"
-        f"<h2 class=\"{THEME['panel_title']}\">Create</h2>"
+        f"<div class=\"{theme['panel']}\">"
+        f"<h2 class=\"{theme['panel_title']}\">Create</h2>"
         f"<form method=\"post\" action=\"{_esc(app.admin_path)}/{safe_model}/create\" "
         f"enctype=\"application/x-www-form-urlencoded\">"
         f"{_csrf_field(csrf_token)}"
-        f"<div class=\"{THEME['form_grid']}\">"
+        f"<div class=\"{theme['form_grid']}\">"
         + "".join(form_inputs)
         + "</div><div class=\"mt-4 flex justify-end\">"
-        f"<button class=\"{THEME['btn_primary']}\" "
+        f"<button class=\"{theme['btn_primary']}\" "
         "type=\"submit\">Create</button></div></form></div>"
     )
     filter_inputs = []
     for field in fields:
         ftype = model.fields[field]
         value = filters.get(field, "")
-        filter_inputs.append(_filter_input_for(field, ftype, value=value, choices=ref_choices.get(field)))
+        filter_inputs.append(
+            _filter_input_for(field, ftype, theme=theme, value=value, choices=ref_choices.get(field))
+        )
     search = (
-        f"<div class=\"{THEME['panel']}\">"
-        f"<h2 class=\"{THEME['panel_title']}\">Filter</h2>"
+        f"<div class=\"{theme['panel']}\">"
+        f"<h2 class=\"{theme['panel_title']}\">Filter</h2>"
         "<form method=\"get\" action=\"\">"
         "<div class=\"mt-4 flex flex-wrap items-end gap-4\">"
-        f"<label class=\"{THEME['label']}\">"
-        f"Query<input class=\"{THEME['input']}\" "
+        f"<label class=\"{theme['label']}\">"
+        f"Query<input class=\"{theme['input']}\" "
         f"name=\"q\" value=\"{safe_q}\" placeholder=\"Search\"/></label>"
-        + _sort_select(model, sort, direction)
-        + f"<button class=\"{THEME['btn_dark']}\" "
+        + _sort_select(model, sort, direction, theme=theme)
+        + f"<button class=\"{theme['btn_dark']}\" "
         "type=\"submit\">Apply</button>"
         + "</div>"
         + f"<div class=\"mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3\">{''.join(filter_inputs)}</div>"
         + f"<input type=\"hidden\" name=\"limit\" value=\"{_esc(limit)}\"/>"
         + "</form></div>"
     )
-    header_row = "".join([f"<th class=\"{THEME['cell']} text-left\">{f}</th>" for f in ["id"] + table_fields])
-    header_row += f"<th class=\"{THEME['cell']} text-left\">Actions</th>"
+    header_row = "".join(
+        [f"<th class=\"{theme['cell']} text-left\">{f}</th>" for f in ["id"] + table_fields]
+    )
+    header_row += f"<th class=\"{theme['cell']} text-left\">Actions</th>"
     ref_label_map: dict[str, dict[str, str]] = {}
     for field, options in ref_choices.items():
         ref_label_map[field] = {str(opt_id): label for opt_id, label in options}
     body_rows = []
     for row in rows:
         row_id = _esc(row.get("id"))
-        cells = [f"<td class=\"{THEME['cell']}\">{row_id}</td>"]
+        cells = [f"<td class=\"{theme['cell']}\">{row_id}</td>"]
         for field in table_fields:
             value = row.get(field, "")
             ftype = model.fields.get(field, "")
             if _is_ref_type(ftype) and value not in ("", None):
                 label = ref_label_map.get(field, {}).get(str(value))
                 display = f"{_esc(value)}" if not label else f"{_esc(value)} · {_esc(label)}"
-                cells.append(f"<td class=\"{THEME['cell']}\">{display}</td>")
+                cells.append(f"<td class=\"{theme['cell']}\">{display}</td>")
             else:
-                cells.append(f"<td class=\"{THEME['cell']}\">{_esc(value)}</td>")
+                cells.append(f"<td class=\"{theme['cell']}\">{_esc(value)}</td>")
         actions = (
-            f"<td class=\"{THEME['cell']}\"><a class=\"{THEME['link']}\" "
+            f"<td class=\"{theme['cell']}\"><a class=\"{theme['link']}\" "
             f"href=\"{_esc(app.admin_path)}/{safe_model}/{row_id}\">Edit</a>"
             f" <form method=\"post\" action=\"{_esc(app.admin_path)}/{safe_model}/{row_id}/delete\""
             " style=\"display:inline\">"
             f"{_csrf_field(csrf_token)}"
-            f"<button class=\"{THEME['btn_outline']}\" type=\"submit\">Delete</button></form></td>"
+            f"<button class=\"{theme['btn_outline']}\" type=\"submit\">Delete</button></form></td>"
         )
-        body_rows.append(f"<tr class=\"{THEME['row']}\">" + "".join(cells) + actions + "</tr>")
+        body_rows.append(f"<tr class=\"{theme['row']}\">" + "".join(cells) + actions + "</tr>")
     table = (
-        f"<div class=\"{THEME['panel']}\">"
-        f"<h2 class=\"{THEME['panel_title']}\">Rows</h2>"
-        f"<div class=\"{THEME['table_wrap']}\">"
-        f"<table class=\"{THEME['table']}\"><thead "
-        f"class=\"{THEME['thead']}\"><tr>"
+        f"<div class=\"{theme['panel']}\">"
+        f"<h2 class=\"{theme['panel_title']}\">Rows</h2>"
+        f"<div class=\"{theme['table_wrap']}\">"
+        f"<table class=\"{theme['table']}\"><thead "
+        f"class=\"{theme['thead']}\"><tr>"
         + header_row
-        + f"</tr></thead><tbody class=\"{THEME['tbody']}\">"
+        + f"</tr></thead><tbody class=\"{theme['tbody']}\">"
         + "".join(body_rows)
         + "</tbody></table></div></div>"
     )
@@ -1050,12 +1534,12 @@ def render_admin_model(
         f"<div class=\"mt-4 flex items-center justify-between text-xs text-slate-600\">"
         f"<span>Page {page} of {total_pages} · {total} total</span>"
         f"<div class=\"flex gap-2\">"
-        f"<a class=\"{THEME['btn_outline']} {prev_disabled}\" href=\"{_page_link(page - 1)}\">Prev</a>"
-        f"<a class=\"{THEME['btn_outline']} {next_disabled}\" href=\"{_page_link(page + 1)}\">Next</a>"
+        f"<a class=\"{theme['btn_outline']} {prev_disabled}\" href=\"{_page_link(page - 1)}\">Prev</a>"
+        f"<a class=\"{theme['btn_outline']} {next_disabled}\" href=\"{_page_link(page + 1)}\">Next</a>"
         f"</div></div>"
     )
     nav_links = [("Admin", app.admin_path), ("API", f"/api/{model.name}")]
-    body = f"<div class=\"{THEME['stack']}\">" + header + form + search + table + pagination + "</div>"
+    body = f"<div class=\"{theme['stack']}\">" + header + form + search + table + pagination + "</div>"
     return render_shell(app, title, body, nav_links=nav_links)
 
 
@@ -1067,39 +1551,41 @@ def render_admin_edit(
     csrf_token: str,
     ref_choices: dict[str, list[tuple[Any, str]]],
 ) -> str:
+    theme = _theme(app)
     safe_model = _esc(model.name)
     safe_id = _esc(row.get("id"))
     title = f"Edit {model.name}"
     header = (
-        f"<header class=\"{THEME['header']}\">"
-        f"<div><h1 class=\"{THEME['header_title']}\">{safe_model} #{safe_id}</h1>"
-        f"<p class=\"{THEME['header_subtitle']}\">Edit entry</p></div>"
-        f"<span class=\"{THEME['header_tag']}\">Edit</span></header>"
+        f"<header class=\"{theme['header']}\">"
+        f"<div><h1 class=\"{theme['header_title']}\">{safe_model} #{safe_id}</h1>"
+        f"<p class=\"{theme['header_subtitle']}\">Edit entry</p></div>"
+        f"<span class=\"{theme['header_tag']}\">Edit</span></header>"
     )
     inputs = []
     for field, ftype in model.fields.items():
         value = row.get(field, "")
-        inputs.append(_input_for(field, ftype, value=value, choices=ref_choices.get(field)))
+        inputs.append(_input_for(field, ftype, theme=theme, value=value, choices=ref_choices.get(field)))
     form = (
-        f"<div class=\"{THEME['panel']}\">"
-        f"<h2 class=\"{THEME['panel_title']}\">Update</h2>"
+        f"<div class=\"{theme['panel']}\">"
+        f"<h2 class=\"{theme['panel_title']}\">Update</h2>"
         f"<form method=\"post\" action=\"{_esc(app.admin_path)}/{safe_model}/{safe_id}/update\" "
         f"enctype=\"application/x-www-form-urlencoded\">"
         f"{_csrf_field(csrf_token)}"
-        f"<div class=\"{THEME['form_grid']}\">"
+        f"<div class=\"{theme['form_grid']}\">"
         + "".join(inputs)
         + "</div><div class=\"mt-4 flex justify-end\">"
-        f"<button class=\"{THEME['btn_dark']}\" "
+        f"<button class=\"{theme['btn_dark']}\" "
         "type=\"submit\">Update</button></div></form></div>"
     )
     nav_links = [("Admin", app.admin_path), ("Back", f"{app.admin_path}/{model.name}")]
-    body = f"<div class=\"{THEME['stack']}\">" + header + form + "</div>"
+    body = f"<div class=\"{theme['stack']}\">" + header + form + "</div>"
     return render_shell(app, title, body, nav_links=nav_links)
 
 def _input_for(
     name: str,
     field_type: str,
     *,
+    theme: dict[str, str],
     value: Any = "",
     choices: list[tuple[Any, str]] | None = None,
 ) -> str:
@@ -1112,8 +1598,8 @@ def _input_for(
                 f"<option value=\"{_esc(opt_value)}\" {selected}>{_esc(label)}</option>"
             )
         return (
-            f"<label class=\"{THEME['label']}\">{_esc(name)}"
-            f"<select class=\"{THEME['input']}\" name=\"{_esc(name)}\">"
+            f"<label class=\"{theme['label']}\">{_esc(name)}"
+            f"<select class=\"{theme['input']}\" name=\"{_esc(name)}\">"
             + "".join(options)
             + "</select></label>"
         )
@@ -1121,8 +1607,8 @@ def _input_for(
         selected = "selected" if str(value) in ("1", "true", "True") else ""
         selected_false = "" if selected else "selected"
         return (
-            f"<label class=\"{THEME['label']}\">"
-            f"{_esc(name)}<select class=\"{THEME['input']}\" name=\"{_esc(name)}\">"
+            f"<label class=\"{theme['label']}\">"
+            f"{_esc(name)}<select class=\"{theme['input']}\" name=\"{_esc(name)}\">"
             f"<option value=\"0\" {selected_false}>false</option>"
             f"<option value=\"1\" {selected}>true</option>"
             "</select></label>"
@@ -1133,8 +1619,8 @@ def _input_for(
         else:
             safe_value = _esc(value)
         return (
-            f"<label class=\"{THEME['label']}\">{_esc(name)}"
-            f"<textarea class=\"{THEME['input']}\" name=\"{_esc(name)}\" rows=\"4\">"
+            f"<label class=\"{theme['label']}\">{_esc(name)}"
+            f"<textarea class=\"{theme['input']}\" name=\"{_esc(name)}\" rows=\"4\">"
             f"{safe_value}</textarea></label>"
         )
     input_type = "text"
@@ -1144,13 +1630,18 @@ def _input_for(
         input_type = "datetime-local"
     safe_value = _esc(value)
     value_attr = f"value=\"{safe_value}\"" if safe_value != "" else ""
-    return f"<label class=\"{THEME['label']}\">{_esc(name)}<input class=\"{THEME['input']}\" name=\"{_esc(name)}\" type=\"{input_type}\" {value_attr}/></label>"
+    return (
+        f"<label class=\"{theme['label']}\">{_esc(name)}"
+        f"<input class=\"{theme['input']}\" name=\"{_esc(name)}\" type=\"{input_type}\" {value_attr}/>"
+        "</label>"
+    )
 
 
 def _filter_input_for(
     name: str,
     field_type: str,
     *,
+    theme: dict[str, str],
     value: Any = "",
     choices: list[tuple[Any, str]] | None = None,
 ) -> str:
@@ -1164,8 +1655,8 @@ def _filter_input_for(
                 f"<option value=\"{_esc(opt_value)}\" {selected}>{_esc(label)}</option>"
             )
         return (
-            f"<label class=\"{THEME['label']}\">{_esc(name)}"
-            f"<select class=\"{THEME['input']}\" name=\"{_esc(field_name)}\">"
+            f"<label class=\"{theme['label']}\">{_esc(name)}"
+            f"<select class=\"{theme['input']}\" name=\"{_esc(field_name)}\">"
             + "".join(options)
             + "</select></label>"
         )
@@ -1176,20 +1667,20 @@ def _filter_input_for(
             f"<option value=\"0\" {'selected' if str(value) == '0' else ''}>false</option>",
         ]
         return (
-            f"<label class=\"{THEME['label']}\">{_esc(name)}"
-            f"<select class=\"{THEME['input']}\" name=\"{_esc(field_name)}\">"
+            f"<label class=\"{theme['label']}\">{_esc(name)}"
+            f"<select class=\"{theme['input']}\" name=\"{_esc(field_name)}\">"
             + "".join(options)
             + "</select></label>"
         )
     safe_value = _esc(value)
     return (
-        f"<label class=\"{THEME['label']}\">{_esc(name)}"
-        f"<input class=\"{THEME['input']}\" name=\"{_esc(field_name)}\" "
+        f"<label class=\"{theme['label']}\">{_esc(name)}"
+        f"<input class=\"{theme['input']}\" name=\"{_esc(field_name)}\" "
         f"type=\"text\" value=\"{safe_value}\"/></label>"
     )
 
 
-def _sort_select(model: ModelSpec, sort: str, direction: str) -> str:
+def _sort_select(model: ModelSpec, sort: str, direction: str, *, theme: dict[str, str]) -> str:
     fields = ["id"] + list(model.fields.keys())
     options = []
     for field in fields:
@@ -1198,10 +1689,10 @@ def _sort_select(model: ModelSpec, sort: str, direction: str) -> str:
     dir_selected = "selected" if direction == "desc" else ""
     dir_selected_asc = "selected" if direction == "asc" else ""
     return (
-        f"<label class=\"{THEME['label']}\">Sort"
+        f"<label class=\"{theme['label']}\">Sort"
         "<div class=\"flex gap-2\">"
-        + f"<select class=\"{THEME['input']}\" name=\"sort\">{''.join(options)}</select>"
-        + f"<select class=\"{THEME['input']}\" name=\"dir\"><option value=\"asc\" {dir_selected_asc}>asc</option>"
+        + f"<select class=\"{theme['input']}\" name=\"sort\">{''.join(options)}</select>"
+        + f"<select class=\"{theme['input']}\" name=\"dir\"><option value=\"asc\" {dir_selected_asc}>asc</option>"
         + f"<option value=\"desc\" {dir_selected}>desc</option></select>"
         + "</div></label>"
     )
@@ -1211,7 +1702,7 @@ def run_server(spec: AppSpec, host: str = "127.0.0.1", port: int = 8000) -> None
     ctx = VibeWebServer(spec)
     try:
         Handler.server_ctx = ctx
-        httpd = HTTPServer((host, port), Handler)
+        httpd = ThreadingHTTPServer((host, port), Handler)
         print(f"VibeWeb running on http://{host}:{port}")
         httpd.serve_forever()
     finally:

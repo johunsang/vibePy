@@ -1,11 +1,44 @@
+.DS_Store
+
+# Local env
+.venv/
+.env
+.env.*
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Editors
+.vscode/
+.idea/
+
+# Logs / artifacts
+.logs/
+*.zip
+
+# Backups
+.git-bak/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Vendored / large deps
 third_party/llama.cpp
 third_party/llama.cpp-src
 third_party/llama.cpp-src/*
 third_party/llama.cpp-src/**/*
-.logs
-*.zip
-.git-bak
-*.db
-__pycache__/
-*.pyc
-*.pyo

@@ -1,0 +1,510 @@
+{
+  "name": "VibeCRM",
+  "db": {
+    "path": "crm.db",
+    "models": [
+      {
+        "name": "Account",
+        "fields": {
+          "name": "text",
+          "industry": "text",
+          "status": "text",
+          "owner": "text",
+          "website": "text",
+          "phone": "text",
+          "active": "bool",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Contact",
+        "fields": {
+          "account": "ref:Account",
+          "first_name": "text",
+          "last_name": "text",
+          "email": "text",
+          "phone": "text",
+          "title": "text",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Deal",
+        "fields": {
+          "account": "ref:Account",
+          "name": "text",
+          "amount": "float",
+          "stage": "text",
+          "probability": "float",
+          "owner": "text",
+          "close_date": "datetime",
+          "created_at": "datetime",
+          "summary": "text"
+        }
+      },
+      {
+        "name": "Project",
+        "fields": {
+          "account": "ref:Account",
+          "name": "text",
+          "status": "text",
+          "start_date": "datetime",
+          "end_date": "datetime",
+          "budget": "float",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Invoice",
+        "fields": {
+          "account": "ref:Account",
+          "project": "ref:Project",
+          "number": "text",
+          "status": "text",
+          "subtotal": "float",
+          "tax": "float",
+          "total": "float",
+          "issued_at": "datetime",
+          "due_date": "datetime",
+          "paid": "bool",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Payment",
+        "fields": {
+          "invoice": "ref:Invoice",
+          "amount": "float",
+          "method": "text",
+          "paid_at": "datetime",
+          "reference": "text",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Task",
+        "fields": {
+          "account": "ref:Account",
+          "project": "ref:Project",
+          "deal": "ref:Deal",
+          "title": "text",
+          "status": "text",
+          "due_at": "datetime",
+          "owner": "text",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Activity",
+        "fields": {
+          "account": "ref:Account",
+          "contact": "ref:Contact",
+          "deal": "ref:Deal",
+          "type": "text",
+          "summary": "text",
+          "status": "text",
+          "due_at": "datetime",
+          "created_at": "datetime"
+        }
+      },
+      {
+        "name": "Note",
+        "fields": {
+          "account": "ref:Account",
+          "contact": "ref:Contact",
+          "deal": "ref:Deal",
+          "content": "text",
+          "created_at": "datetime"
+        }
+      }
+    ]
+  },
+  "api": {
+    "crud": [
+      "Account",
+      "Contact",
+      "Deal",
+      "Project",
+      "Invoice",
+      "Payment",
+      "Task",
+      "Activity",
+      "Note"
+    ],
+    "actions": [
+      {
+        "name": "deal_summary",
+        "kind": "llm",
+        "method": "POST",
+        "path": "/api/actions/deal_summary",
+        "auth": "api",
+        "llm": {
+          "provider": "openai",
+          "base_url": "${env.VIBEWEB_AI_BASE_URL}",
+          "model": "${env.VIBEWEB_AI_MODEL}",
+          "api_key_env": "VIBEWEB_AI_API_KEY",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a CRM assistant. Return ONLY JSON. No markdown."
+            },
+            {
+              "role": "user",
+              "content": "Summarize this deal for a CRM. Deal JSON: ${input.row}. Return {\"summary\": \"one short paragraph\"}."
+            }
+          ],
+          "temperature": 0.2,
+          "output": "json"
+        }
+      },
+      {
+        "name": "post_webhook",
+        "kind": "http",
+        "method": "POST",
+        "path": "/api/actions/post_webhook",
+        "auth": "api",
+        "http": {
+          "url": "${env.VIBEWEB_WEBHOOK_URL}",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "event": "${input.event}",
+            "model": "${input.model}",
+            "row_id": "${input.row_id}",
+            "row": "${input.row}"
+          },
+          "timeout_s": 20,
+          "retries": 1,
+          "expect": "auto"
+        }
+      },
+      {
+        "name": "create_invoice_from_deal",
+        "kind": "db",
+        "method": "POST",
+        "path": "/api/actions/create_invoice_from_deal",
+        "auth": "api",
+        "db": {
+          "op": "insert",
+          "model": "Invoice",
+          "data": {
+            "account": "${input.row.account}",
+            "project": "",
+            "number": "INV-${input.row_id}",
+            "status": "Open",
+            "subtotal": "${input.row.amount}",
+            "tax": 0,
+            "total": "${input.row.amount}",
+            "issued_at": "${input.row.close_date}",
+            "due_date": "${input.row.close_date}",
+            "paid": false
+          }
+        }
+      },
+      {
+        "name": "create_followup_task",
+        "kind": "db",
+        "method": "POST",
+        "path": "/api/actions/create_followup_task",
+        "auth": "api",
+        "db": {
+          "op": "insert",
+          "model": "Task",
+          "data": {
+            "account": "${input.account}",
+            "project": "",
+            "deal": "${input.deal_id}",
+            "title": "Send invoice ${input.invoice_number}",
+            "status": "Open",
+            "due_at": "${input.due_at}",
+            "owner": "${input.owner}"
+          }
+        }
+      },
+      {
+        "name": "create_invoice_note",
+        "kind": "db",
+        "method": "POST",
+        "path": "/api/actions/create_invoice_note",
+        "auth": "api",
+        "db": {
+          "op": "insert",
+          "model": "Note",
+          "data": {
+            "account": "${input.account}",
+            "contact": "",
+            "deal": "${input.deal_id}",
+            "content": "Auto: created invoice ${input.invoice_number} (total: ${input.total})."
+          }
+        }
+      },
+      {
+        "name": "deal_closed_won_workflow",
+        "kind": "flow",
+        "method": "POST",
+        "path": "/api/actions/deal_closed_won_workflow",
+        "auth": "api",
+        "flow": {
+          "vars": {
+            "invoice_number": "",
+            "invoice_due_at": "",
+            "invoice_total": 0
+          },
+          "steps": [
+            {
+              "id": "invoice",
+              "use": "create_invoice_from_deal",
+              "on_error": "continue",
+              "set": {
+                "invoice_number": "${steps.invoice.data.number}",
+                "invoice_due_at": "${steps.invoice.data.due_date}",
+                "invoice_total": "${steps.invoice.data.total}"
+              }
+            },
+            {
+              "id": "task",
+              "use": "create_followup_task",
+              "when": {
+                "steps.invoice.ok": true
+              },
+              "input": {
+                "account": "${input.row.account}",
+                "deal_id": "${input.row_id}",
+                "owner": "${input.row.owner}",
+                "invoice_number": "${vars.invoice_number}",
+                "due_at": "${vars.invoice_due_at}"
+              }
+            },
+            {
+              "id": "note",
+              "use": "create_invoice_note",
+              "when": {
+                "steps.invoice.ok": true
+              },
+              "input": {
+                "account": "${input.row.account}",
+                "deal_id": "${input.row_id}",
+                "invoice_number": "${vars.invoice_number}",
+                "total": "${vars.invoice_total}"
+              }
+            }
+          ],
+          "return_step": "invoice"
+        }
+      }
+    ],
+    "hooks": [
+      {
+        "model": "Deal",
+        "event": "after_create",
+        "action": "deal_summary",
+        "mode": "async",
+        "writeback": [
+          "summary"
+        ]
+      },
+      {
+        "model": "Deal",
+        "event": "after_update",
+        "action": "deal_summary",
+        "mode": "async",
+        "when_changed": [
+          "name",
+          "amount",
+          "stage",
+          "probability",
+          "owner",
+          "close_date"
+        ],
+        "writeback": [
+          "summary"
+        ]
+      },
+      {
+        "model": "Deal",
+        "event": "after_update",
+        "action": "deal_closed_won_workflow",
+        "mode": "async",
+        "when_changed": [
+          "stage"
+        ],
+        "when": {
+          "$and": [
+            {
+              "row.stage": "Closed Won"
+            },
+            {
+              "$gt": [
+                "row.amount",
+                0
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "ui": {
+    "admin": true,
+    "admin_path": "/admin",
+    "admin_auth": {
+      "type": "basic",
+      "username": "admin",
+      "password": "admin"
+    },
+    "pages": [
+      {
+        "path": "/accounts",
+        "model": "Account",
+        "title": "Accounts",
+        "default_sort": "created_at",
+        "default_dir": "desc",
+        "visible_fields": [
+          "name",
+          "industry",
+          "status",
+          "owner",
+          "active",
+          "created_at"
+        ]
+      },
+      {
+        "path": "/contacts",
+        "model": "Contact",
+        "title": "Contacts",
+        "default_sort": "created_at",
+        "default_dir": "desc",
+        "visible_fields": [
+          "account",
+          "first_name",
+          "last_name",
+          "email",
+          "phone",
+          "title"
+        ]
+      },
+      {
+        "path": "/deals",
+        "model": "Deal",
+        "title": "Deals",
+        "default_sort": "close_date",
+        "default_dir": "asc",
+        "default_filters": {
+          "stage": "Open"
+        },
+        "visible_fields": [
+          "account",
+          "name",
+          "summary",
+          "amount",
+          "stage",
+          "probability",
+          "owner",
+          "close_date"
+        ]
+      },
+      {
+        "path": "/projects",
+        "model": "Project",
+        "title": "Projects",
+        "default_sort": "start_date",
+        "default_dir": "desc",
+        "default_filters": {
+          "status": "Active"
+        },
+        "visible_fields": [
+          "account",
+          "name",
+          "status",
+          "start_date",
+          "end_date",
+          "budget"
+        ]
+      },
+      {
+        "path": "/invoices",
+        "model": "Invoice",
+        "title": "Invoices",
+        "default_sort": "due_date",
+        "default_dir": "asc",
+        "default_filters": {
+          "status": "Open"
+        },
+        "visible_fields": [
+          "account",
+          "project",
+          "number",
+          "status",
+          "total",
+          "issued_at",
+          "due_date",
+          "paid"
+        ]
+      },
+      {
+        "path": "/payments",
+        "model": "Payment",
+        "title": "Payments",
+        "default_sort": "paid_at",
+        "default_dir": "desc",
+        "visible_fields": [
+          "invoice",
+          "amount",
+          "method",
+          "paid_at",
+          "reference"
+        ]
+      },
+      {
+        "path": "/tasks",
+        "model": "Task",
+        "title": "Tasks",
+        "default_sort": "due_at",
+        "default_dir": "asc",
+        "default_filters": {
+          "status": "Open"
+        },
+        "visible_fields": [
+          "account",
+          "project",
+          "deal",
+          "title",
+          "status",
+          "due_at",
+          "owner"
+        ]
+      },
+      {
+        "path": "/activities",
+        "model": "Activity",
+        "title": "Activities",
+        "default_sort": "due_at",
+        "default_dir": "asc",
+        "visible_fields": [
+          "account",
+          "contact",
+          "deal",
+          "type",
+          "summary",
+          "status",
+          "due_at"
+        ]
+      },
+      {
+        "path": "/notes",
+        "model": "Note",
+        "title": "Notes",
+        "default_sort": "created_at",
+        "default_dir": "desc",
+        "visible_fields": [
+          "account",
+          "contact",
+          "deal",
+          "content",
+          "created_at"
+        ]
+      }
+    ]
+  }
+}
