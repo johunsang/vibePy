@@ -142,7 +142,7 @@
         </div>
       </div>
       <form id="generate-form" class="mt-6 grid gap-4 md:grid-cols-[1fr_auto]" method="post" action="/generate">
-        <textarea name="prompt" rows="4" class="w-full rounded-2xl border border-slate-900/10 bg-white px-4 py-3 text-sm shadow-[0_8px_16px_rgba(15,23,42,0.08)]" placeholder="예: CRM for freelancers with clients, projects, invoices"></textarea>
+        <textarea name="prompt" rows="4" class="w-full rounded-2xl border border-slate-900/10 bg-white px-4 py-3 text-sm shadow-[0_8px_16px_rgba(15,23,42,0.08)]" placeholder="Example: CRM for freelancers with clients, projects, invoices"></textarea>
         <div class="flex flex-col gap-3">
           <button id="generate-btn" class="rounded-2xl border border-slate-900/10 bg-brand-400 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_18px_rgba(255,107,74,0.35)]" type="submit">Generate ZIP</button>
           <p id="generate-status" class="text-xs text-slate-600">Set `VIBEWEB_AI_BASE_URL` + `VIBEWEB_AI_MODEL` (and `VIBEWEB_AI_API_KEY` if required).</p>
@@ -522,12 +522,12 @@
         generateForm.querySelector('[name="prompt"]')?.value || ""
       ).trim();
       if (!prompt) {
-        generateStatus.textContent = "프롬프트를 입력하세요.";
+        generateStatus.textContent = "Prompt is required.";
         return;
       }
       generateBtn.disabled = true;
-      generateBtn.textContent = "생성중...";
-      generateStatus.textContent = "생성중...";
+      generateBtn.textContent = "Generating...";
+      generateStatus.textContent = "Generating...";
       try {
         const res = await fetch("/generate", {
           method: "POST",
@@ -557,13 +557,13 @@
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        generateStatus.textContent = "완료: ZIP 다운로드됨.";
+        generateStatus.textContent = "Done: ZIP downloaded.";
       } catch (err) {
-        generateStatus.textContent = `실패: ${err.message || "Generation failed."}`;
+        generateStatus.textContent = `Failed: ${err.message || "Generation failed."}`;
       } finally {
         generateBtn.disabled = false;
         generateBtn.textContent = "Generate ZIP";
-        if (generateStatus.textContent === "생성중...") {
+        if (generateStatus.textContent === "Generating...") {
           generateStatus.textContent = generateIdleText;
         }
       }

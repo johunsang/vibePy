@@ -6,6 +6,21 @@ The format is based on *Keep a Changelog* and this project adheres to *Semantic 
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-02-07
+
+### Documentation
+- SPEC: rewritten as a VibeLang IR spec (JSON IR + `.vbl`).
+- AI Editing: added VibeLang editing rules and clarified outbound policy notes in examples.
+- CRM example: GLM-4.7-Flash-first AI configuration (DeepSeek remains optional).
+- README: added CI and release badges.
+
+### UI
+- Gallery homepage: Natural Language Builder strings are now fully English.
+- `docs/`: synced gallery homepage and CRM specs with `examples/`.
+
+### Internal
+- VibeLang CLI: refactored parse command definition order (no behavior change).
+
 ## [0.2.1] - 2026-02-07
 
 ### Documentation

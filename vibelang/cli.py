@@ -50,6 +50,12 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_parse(args: argparse.Namespace) -> int:
+    ir = load_program(args.file)
+    print(json.dumps(ir, ensure_ascii=False, indent=2))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vibelang")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -84,7 +90,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-def cmd_parse(args: argparse.Namespace) -> int:
-    ir = load_program(args.file)
-    print(json.dumps(ir, ensure_ascii=False, indent=2))
-    return 0

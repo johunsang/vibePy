@@ -1,5 +1,8 @@
 # VibePy
 
+[![CI](https://github.com/johunsang/vibePy/actions/workflows/ci.yml/badge.svg)](https://github.com/johunsang/vibePy/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/tag/johunsang/vibePy?label=release)](https://github.com/johunsang/vibePy/releases)
+
 [Live Demo](https://vibepy-gallery.onrender.com)
 
 VibePy is a JSON-first, AI-friendly stack that combines **VibeLang** (a Python-compatible DSL) and **VibeWeb** (a full-stack JSON spec for DB/API/UI).

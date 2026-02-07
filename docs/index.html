@@ -71,6 +71,7 @@
           <div class="flex flex-wrap gap-2">
             <button class="rounded-full border border-slate-900/10 bg-brand-400 px-3 py-1 text-xs font-semibold text-white" data-sample="todo">Load Todo</button>
             <button class="rounded-full border border-slate-900/10 bg-white px-3 py-1 text-xs font-semibold text-slate-700" data-sample="crm">Load CRM</button>
+            <button class="rounded-full border border-slate-900/10 bg-white px-3 py-1 text-xs font-semibold text-slate-700" data-sample="crm_advanced">Load CRM Advanced</button>
             <button class="rounded-full border border-slate-900/10 bg-white px-3 py-1 text-xs font-semibold text-slate-700" data-sample="inventory">Load Inventory</button>
           </div>
           <textarea id="playground-spec" rows="14" class="mt-4 w-full rounded-2xl border border-slate-900/10 bg-white px-4 py-3 font-mono text-xs shadow-[0_8px_16px_rgba(15,23,42,0.08)]"></textarea>
@@ -134,17 +135,17 @@
         <div>
           <p class="text-[11px] uppercase tracking-[0.45em] text-slate-500">Natural Language Builder</p>
           <h2 class="mt-3 text-2xl font-semibold">Generate a new app</h2>
-          <p class="mt-2 text-sm text-slate-700">Powered by DeepSeek API. Describe the app and download a ZIP.</p>
+          <p class="mt-2 text-sm text-slate-700">Powered by your configured OpenAI-compatible endpoint (recommended: local GLM-4.7-Flash). Describe the app and download a ZIP.</p>
         </div>
         <div class="rounded-2xl border border-slate-900/10 bg-brand-50 px-4 py-3 text-xs text-slate-700">
           Endpoint: <span class="font-mono">POST /generate</span>
         </div>
       </div>
       <form id="generate-form" class="mt-6 grid gap-4 md:grid-cols-[1fr_auto]" method="post" action="/generate">
-        <textarea name="prompt" rows="4" class="w-full rounded-2xl border border-slate-900/10 bg-white px-4 py-3 text-sm shadow-[0_8px_16px_rgba(15,23,42,0.08)]" placeholder="예: CRM for freelancers with clients, projects, invoices"></textarea>
+        <textarea name="prompt" rows="4" class="w-full rounded-2xl border border-slate-900/10 bg-white px-4 py-3 text-sm shadow-[0_8px_16px_rgba(15,23,42,0.08)]" placeholder="Example: CRM for freelancers with clients, projects, invoices"></textarea>
         <div class="flex flex-col gap-3">
           <button id="generate-btn" class="rounded-2xl border border-slate-900/10 bg-brand-400 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_18px_rgba(255,107,74,0.35)]" type="submit">Generate ZIP</button>
-          <p id="generate-status" class="text-xs text-slate-600">Ensure `VIBEWEB_AI_API_KEY` is set.</p>
+          <p id="generate-status" class="text-xs text-slate-600">Set `VIBEWEB_AI_BASE_URL` + `VIBEWEB_AI_MODEL` (and `VIBEWEB_AI_API_KEY` if required).</p>
         </div>
       </form>
     </section>
@@ -168,6 +169,16 @@
           <a class="text-slate-600" href="http://127.0.0.1:8000/admin" target="_blank" rel="noreferrer">Admin (run first)</a>
         </div>
         <pre class="mt-4 rounded-2xl border border-slate-900/10 bg-slate-900 px-4 py-3 font-mono text-xs text-slate-100">python3 -m vibeweb run examples/crm/crm.vweb.json</pre>
+      </article>
+
+      <article class="rounded-3xl border border-slate-900/10 bg-white p-6 shadow-[0_14px_28px_rgba(15,23,42,0.12)]">
+        <h2 class="text-xl font-semibold">CRM Advanced</h2>
+        <p class="mt-2 text-sm text-slate-700">Actions + hooks, LLM writeback, DB workflow hooks (when/when_changed), default filters/sort.</p>
+        <div class="mt-4 flex flex-wrap gap-3 text-sm">
+          <a class="font-semibold text-slate-900 underline decoration-brand-400 decoration-4 underline-offset-4" href="./crm/crm.advanced.vweb.json">Spec file</a>
+          <a class="text-slate-600" href="http://127.0.0.1:8000/admin" target="_blank" rel="noreferrer">Admin (run first)</a>
+        </div>
+        <pre class="mt-4 rounded-2xl border border-slate-900/10 bg-slate-900 px-4 py-3 font-mono text-xs text-slate-100">python3 -m vibeweb run examples/crm/crm.advanced.vweb.json</pre>
       </article>
 
       <article class="rounded-3xl border border-slate-900/10 bg-white p-6 shadow-[0_14px_28px_rgba(15,23,42,0.12)]">
@@ -250,6 +261,11 @@
         label: "CRM",
         path: "./crm/crm.vweb.json",
         run: "python3 -m vibeweb run examples/crm/crm.vweb.json --port 8000"
+      },
+      crm_advanced: {
+        label: "CRM Advanced",
+        path: "./crm/crm.advanced.vweb.json",
+        run: "python3 -m vibeweb run examples/crm/crm.advanced.vweb.json --port 8000"
       },
       inventory: {
         label: "Inventory",
@@ -506,12 +522,12 @@
         generateForm.querySelector('[name="prompt"]')?.value || ""
       ).trim();
       if (!prompt) {
-        generateStatus.textContent = "프롬프트를 입력하세요.";
+        generateStatus.textContent = "Prompt is required.";
         return;
       }
       generateBtn.disabled = true;
-      generateBtn.textContent = "생성중...";
-      generateStatus.textContent = "생성중...";
+      generateBtn.textContent = "Generating...";
+      generateStatus.textContent = "Generating...";
       try {
         const res = await fetch("/generate", {
           method: "POST",
@@ -519,8 +535,18 @@
           body: JSON.stringify({ prompt }),
         });
         if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || "Generation failed");
+          const contentType = String(res.headers.get("Content-Type") || "").toLowerCase();
+          let text = "";
+          try {
+            text = await res.text();
+          } catch {}
+          const trimmed = String(text || "").trim();
+          const looksLikeHtml = trimmed.toLowerCase().includes("<!doctype html") || trimmed.toLowerCase().includes("<html");
+          const looksLikePlainError = contentType.includes("text/plain") && trimmed && trimmed.length < 400;
+          const message = looksLikePlainError && !looksLikeHtml
+            ? trimmed.split("\n")[0]
+            : `${res.status} ${res.statusText || "Error"}`;
+          throw new Error(message);
         }
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
@@ -531,13 +557,13 @@
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        generateStatus.textContent = "완료: ZIP 다운로드됨.";
+        generateStatus.textContent = "Done: ZIP downloaded.";
       } catch (err) {
-        generateStatus.textContent = `실패: ${err.message || "Generation failed."}`;
+        generateStatus.textContent = `Failed: ${err.message || "Generation failed."}`;
       } finally {
         generateBtn.disabled = false;
         generateBtn.textContent = "Generate ZIP";
-        if (generateStatus.textContent === "생성중...") {
+        if (generateStatus.textContent === "Generating...") {
           generateStatus.textContent = generateIdleText;
         }
       }

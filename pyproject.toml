@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vibepy"
-version = "0.2.1"
+version = "0.2.2"
 description = "VibePy: JSON-first, AI-friendly stack with VibeLang and VibeWeb."
 readme = "README.md"
 requires-python = ">=3.10"
