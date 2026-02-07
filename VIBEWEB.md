@@ -67,8 +67,6 @@ Page
   "api": {"crud": ["Todo"]},
   "ui": {
     "admin": true,
-    "admin_path": "/admin",
-    "admin_auth": { "type": "basic", "username": "admin", "password": "admin" },
     "pages": [
       {"path": "/", "model": "Todo", "title": "Todos"}
     ]
@@ -447,7 +445,6 @@ python3 -m vibeweb ai --prompt "CRM app with accounts, contacts, deals, invoices
 The Gallery `POST /generate` endpoint uses the same `VIBEWEB_AI_*` environment variables.
 
 ## Roadmap
-- v0.2: Relationship helpers and richer admin filters
-- v0.3: Async tasks and background jobs
+- v0.3: Relationship helpers, richer admin filters, async tasks
 - v0.4: Static export (React or static HTML)
 - v1.0: Stable spec + plugin system

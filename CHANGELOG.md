@@ -6,6 +6,10 @@ The format is based on *Keep a Changelog* and this project adheres to *Semantic 
 
 ## [Unreleased]
 
+### Documentation
+- README: condensed into a concise overview with Quick Start, moved detailed specs to SPEC.md and VIBEWEB.md.
+- VIBEWEB: removed inline admin credentials from example (use env vars instead), updated roadmap.
+
 ## [0.2.2] - 2026-02-07
 
 ### Documentation
