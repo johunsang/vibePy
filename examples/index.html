@@ -135,7 +135,7 @@
         <div>
           <p class="text-[11px] uppercase tracking-[0.45em] text-slate-500">Natural Language Builder</p>
           <h2 class="mt-3 text-2xl font-semibold">Generate a new app</h2>
-          <p class="mt-2 text-sm text-slate-700">Powered by DeepSeek API. Describe the app and download a ZIP.</p>
+          <p class="mt-2 text-sm text-slate-700">Powered by your configured OpenAI-compatible endpoint (recommended: local GLM-4.7-Flash). Describe the app and download a ZIP.</p>
         </div>
         <div class="rounded-2xl border border-slate-900/10 bg-brand-50 px-4 py-3 text-xs text-slate-700">
           Endpoint: <span class="font-mono">POST /generate</span>
@@ -145,7 +145,7 @@
         <textarea name="prompt" rows="4" class="w-full rounded-2xl border border-slate-900/10 bg-white px-4 py-3 text-sm shadow-[0_8px_16px_rgba(15,23,42,0.08)]" placeholder="예: CRM for freelancers with clients, projects, invoices"></textarea>
         <div class="flex flex-col gap-3">
           <button id="generate-btn" class="rounded-2xl border border-slate-900/10 bg-brand-400 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_18px_rgba(255,107,74,0.35)]" type="submit">Generate ZIP</button>
-          <p id="generate-status" class="text-xs text-slate-600">Ensure `VIBEWEB_AI_API_KEY` is set.</p>
+          <p id="generate-status" class="text-xs text-slate-600">Set `VIBEWEB_AI_BASE_URL` + `VIBEWEB_AI_MODEL` (and `VIBEWEB_AI_API_KEY` if required).</p>
         </div>
       </form>
     </section>
@@ -535,8 +535,18 @@
           body: JSON.stringify({ prompt }),
         });
         if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || "Generation failed");
+          const contentType = String(res.headers.get("Content-Type") || "").toLowerCase();
+          let text = "";
+          try {
+            text = await res.text();
+          } catch {}
+          const trimmed = String(text || "").trim();
+          const looksLikeHtml = trimmed.toLowerCase().includes("<!doctype html") || trimmed.toLowerCase().includes("<html");
+          const looksLikePlainError = contentType.includes("text/plain") && trimmed && trimmed.length < 400;
+          const message = looksLikePlainError && !looksLikeHtml
+            ? trimmed.split("\n")[0]
+            : `${res.status} ${res.statusText || "Error"}`;
+          throw new Error(message);
         }
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);

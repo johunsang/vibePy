@@ -6,6 +6,13 @@ The format is based on *Keep a Changelog* and this project adheres to *Semantic 
 
 ## [Unreleased]
 
+### Documentation
+- README: clarified GLM-4.7-Flash-first AI generator usage and added doc index links.
+
+### UI
+- Gallery homepage: Natural Language Builder copy now reflects an OpenAI-compatible endpoint (GLM-4.7-Flash recommended).
+- Gallery homepage: `/generate` failures no longer dump huge HTML responses into the status line.
+
 ## [0.2.0] - 2026-02-07
 
 ### Added

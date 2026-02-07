@@ -5,6 +5,8 @@
 VibePy is a JSON-first, AI-friendly stack that combines **VibeLang** (a Python-compatible DSL) and **VibeWeb** (a full-stack JSON spec for DB/API/UI).
 It runs on CPython and keeps the full Python ecosystem available.
 
+Docs: [SPEC](SPEC.md) | [VibeWeb](VIBEWEB.md) | [AI Editing](AI_EDITING.md) | [Changelog](CHANGELOG.md) | [Release Process](RELEASE.md)
+
 ## Contents
 - Purpose / When You Need This
 - Comparison Table
@@ -21,7 +23,7 @@ It runs on CPython and keeps the full Python ecosystem available.
 - VibeWeb Design Syntax
 - VibeWeb UI Customization
 - VibeWeb CLI
-- AI Generator (DeepSeek API)
+- AI Generator (GLM-4.7-Flash or DeepSeek)
 - Deploy (Render)
 
 ## Purpose / When You Need This
@@ -66,7 +68,7 @@ Minimal program:
 }
 ```
 
-IR format (v0.1)
+IR format (draft)
 - `meta`: object with metadata
 - `imports`: list of Python imports
 - `inputs`: object of input values
@@ -373,6 +375,7 @@ Note: the Gallery homepage design lives in `examples/index.html`.
 ## VibeWeb CLI
 Quick start
 ```bash
+python3 -m vibeweb validate examples
 python3 -m vibeweb validate examples/todo/todo.vweb.json
 python3 -m vibeweb run examples/todo/todo.vweb.json --host 127.0.0.1 --port 8000
 ```
@@ -382,27 +385,28 @@ Examples homepage (served from root):
 python3 -m vibeweb gallery --root examples --host 127.0.0.1 --port 9000
 ```
 
-## AI Generator (DeepSeek or GLM-4.7-Flash)
-Natural language builder:
+## AI Generator (GLM-4.7-Flash or DeepSeek)
+Natural language builder (recommended: local GLM-4.7-Flash):
+```bash
+bash scripts/run_glm47_server.sh
+export VIBEWEB_AI_BASE_URL="http://127.0.0.1:8080/v1"
+export VIBEWEB_AI_MODEL="glm-4.7-flash"
+
+python3 -m vibeweb gallery --root examples --host 127.0.0.1 --port 9000
+# Then open http://127.0.0.1:9000 and use the form to download a ZIP.
+```
+
+Cloud option (DeepSeek):
 ```bash
 export VIBEWEB_AI_BASE_URL="https://api.deepseek.com/v1"
 export VIBEWEB_AI_MODEL="deepseek-chat"
 export VIBEWEB_AI_API_KEY="YOUR_DEEPSEEK_KEY"
 python3 -m vibeweb gallery --root examples --host 127.0.0.1 --port 9000
-# Then open http://127.0.0.1:9000 and use the form to download a ZIP.
 ```
 
-Generate a spec with DeepSeek:
+Generate a spec (same settings as the Gallery):
 ```bash
 python3 -m vibeweb ai --prompt "simple todo app with title and done"
-```
-
-Local model option (GLM-4.7-Flash via llama.cpp server):
-```bash
-bash scripts/run_glm47_server.sh
-export VIBEWEB_AI_BASE_URL="http://127.0.0.1:8080/v1"
-export VIBEWEB_AI_MODEL="glm-4.7-flash"
-python3 -m vibeweb gallery --root examples --host 127.0.0.1 --port 9000
 ```
 
 Admin credential overrides (recommended for security):
@@ -418,3 +422,6 @@ Required env vars (set in Render dashboard):
 - `VIBEWEB_AI_API_KEY`
 - Optional: `VIBEWEB_AI_MODEL` (default `deepseek-chat`)
 - Optional: `VIBEWEB_AI_BASE_URL` (default `https://api.deepseek.com/v1`)
+
+Health check:
+- `GET /healthz` should return `ok`
